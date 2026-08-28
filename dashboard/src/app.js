@@ -207,56 +207,52 @@ document.addEventListener('DOMContentLoaded', () => {
             let roll = status.imuRoll;
             let yaw = status.imuYaw;
 
-            const remapMode = selectImuRemap ? selectImuRemap.value : 'under_rot90_invyaw';
+            const remapMode = selectImuRemap ? selectImuRemap.value : 'rot90_180_neg';
 
             switch (remapMode) {
-                case 'under_rot90_invyaw':
-                    // Under-base sideways: Roll is Tilt, Yaw is inverted (Z points down)
+                case 'rot90_180_neg':
+                    // Under-base sideways: 180° flipped heading, negative roll for tilt
+                    pitch = -status.imuRoll;
+                    roll = -status.imuPitch;
+                    yaw = (status.imuYaw + 180) % 360;
+                    break;
+                case 'rot90_180_pos':
+                    // Under-base sideways: 180° flipped heading, positive roll for tilt
                     pitch = status.imuRoll;
                     roll = status.imuPitch;
-                    yaw = (360 - status.imuYaw) % 360;
+                    yaw = (status.imuYaw + 180) % 360;
                     break;
-                case 'under_rot90_invyaw_90':
-                    // Under-base sideways + 90° heading offset
-                    pitch = status.imuRoll;
-                    roll = status.imuPitch;
-                    yaw = ((360 - status.imuYaw) + 90) % 360;
-                    break;
-                case 'under_rot90_invyaw_180':
-                    // Under-base sideways + 180° heading offset
-                    pitch = status.imuRoll;
-                    roll = status.imuPitch;
-                    yaw = ((360 - status.imuYaw) + 180) % 360;
-                    break;
-                case 'under_rot90_invyaw_270':
-                    // Under-base sideways + 270° heading offset
-                    pitch = status.imuRoll;
-                    roll = status.imuPitch;
-                    yaw = ((360 - status.imuYaw) + 270) % 360;
-                    break;
-                case 'under_flat_invyaw':
-                    // Under-base flat: Pitch is Tilt, Yaw is inverted
-                    pitch = status.imuPitch;
-                    roll = status.imuRoll;
-                    yaw = (360 - status.imuYaw) % 360;
-                    break;
-                case 'swap':
-                    // Top-mounted sideways 90°
+                case 'rot90_0_pos':
+                    // Under-base sideways: +0° heading, positive roll for tilt
                     pitch = status.imuRoll;
                     roll = status.imuPitch;
                     yaw = status.imuYaw;
                     break;
-                case 'swap_inv':
+                case 'rot90_0_neg':
+                    // Under-base sideways: +0° heading, negative roll for tilt
                     pitch = -status.imuRoll;
                     roll = status.imuPitch;
                     yaw = status.imuYaw;
                     break;
-                case 'pitch_inv':
-                    pitch = -status.imuPitch;
-                    roll = status.imuRoll;
-                    yaw = status.imuYaw;
+                case 'rot90_90':
+                    // Under-base sideways: +90° heading, negative roll for tilt
+                    pitch = -status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = (status.imuYaw + 90) % 360;
                     break;
-                case 'default':
+                case 'rot90_270':
+                    // Under-base sideways: +270° heading, negative roll for tilt
+                    pitch = -status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = (status.imuYaw + 270) % 360;
+                    break;
+                case 'flat_180':
+                    // Flat mounted: 180° flipped heading, negative pitch for tilt
+                    pitch = -status.imuPitch;
+                    roll = -status.imuRoll;
+                    yaw = (status.imuYaw + 180) % 360;
+                    break;
+                case 'flat_0':
                 default:
                     pitch = status.imuPitch;
                     roll = status.imuRoll;

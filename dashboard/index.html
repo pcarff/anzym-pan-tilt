@@ -160,15 +160,14 @@
                         <div class="imu-remap-row">
                             <label for="select-imu-remap" class="calib-label">Mounting Orientation:</label>
                             <select id="select-imu-remap" class="select-input sm">
-                                <option value="under_rot90_invyaw" selected>Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W)</option>
-                                <option value="under_rot90_invyaw_90">Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W +90°)</option>
-                                <option value="under_rot90_invyaw_180">Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W +180°)</option>
-                                <option value="under_rot90_invyaw_270">Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W +270°)</option>
-                                <option value="under_flat_invyaw">Under-Base Flat (+Pitch=Tilt, Flip E↔W)</option>
-                                <option value="swap">Top-Mounted Rotated 90° (+Roll=Tilt, Normal Yaw)</option>
-                                <option value="default">Top-Mounted Flat (+Pitch=Tilt, Normal Yaw)</option>
-                                <option value="swap_inv">Inverted Top-Mounted (-Roll=Tilt, Normal Yaw)</option>
-                                <option value="pitch_inv">Inverted Pitch (-Pitch=Tilt, Normal Yaw)</option>
+                                <option value="rot90_180_neg" selected>Under-Base 90° (+180° Heading, -Roll=Tilt)</option>
+                                <option value="rot90_180_pos">Under-Base 90° (+180° Heading, +Roll=Tilt)</option>
+                                <option value="rot90_0_pos">Under-Base 90° (+0° Heading, +Roll=Tilt)</option>
+                                <option value="rot90_0_neg">Under-Base 90° (+0° Heading, -Roll=Tilt)</option>
+                                <option value="rot90_90">Under-Base 90° (+90° Heading, -Roll=Tilt)</option>
+                                <option value="rot90_270">Under-Base 90° (+270° Heading, -Roll=Tilt)</option>
+                                <option value="flat_180">Flat Mounted (+180° Heading, -Pitch=Tilt)</option>
+                                <option value="flat_0">Flat Default (+0° Heading, +Pitch=Tilt)</option>
                             </select>
                             <button id="btn-sync-imu" class="btn-sm btn-action" title="Sync Open-Loop Steppers with Absolute IMU Orientation">⚡ Sync to IMU</button>
                         </div>
