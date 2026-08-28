@@ -118,78 +118,171 @@ class GimbalVisualizer {
 
     buildGimbalModel() {
         const matBase = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.8 });
-        const matPanTurntable = new THREE.MeshStandardMaterial({ color: 0x059669, roughness: 0.3, metalness: 0.7 });
+        const matPanTurntable = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.3, metalness: 0.7 });
         const matFork = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.4, metalness: 0.6 });
-        const matTiltPayload = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3, metalness: 0.8 });
+        const matTiltPayload = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.3, metalness: 0.7 });
         const matLens = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.9 });
-        const matLaser = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.8 });
+        const matLaser = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 });
 
-        // 1. Stationary Mount Base
-        const baseGeo = new THREE.CylinderGeometry(0.8, 0.9, 0.3, 32);
-        const baseMesh = new THREE.Mesh(baseGeo, matBase);
-        baseMesh.position.y = 0.15;
-        this.scene.add(baseMesh);
+        // 1. Base Mount Hierarchy
+        this.baseGroup = new THREE.Group();
+        this.scene.add(this.baseGroup);
 
-        // 2. Pan Group (Rotates with Pan angle)
+        // 2. Pan Group (Rotates around Y-axis with Pan/Azimuth)
         this.panGroup = new THREE.Group();
-        this.panGroup.position.y = 0.3;
+        this.panGroup.position.y = 0;
         this.scene.add(this.panGroup);
 
-        // Pan rotating turntable disc
-        const panDiscGeo = new THREE.CylinderGeometry(0.72, 0.72, 0.15, 32);
-        const panDiscMesh = new THREE.Mesh(panDiscGeo, matPanTurntable);
-        panDiscMesh.position.y = 0.075;
-        this.panGroup.add(panDiscMesh);
-
-        // U-Fork Left Upright Arm
-        const armLeftGeo = new THREE.BoxGeometry(0.18, 0.9, 0.28);
-        const armLeft = new THREE.Mesh(armLeftGeo, matFork);
-        armLeft.position.set(-0.5, 0.6, 0);
-        this.panGroup.add(armLeft);
-
-        // U-Fork Right Upright Arm
-        const armRight = new THREE.Mesh(armLeftGeo, matFork);
-        armRight.position.set(0.5, 0.6, 0);
-        this.panGroup.add(armRight);
-
-        // 3. Tilt Group (Pivot at center of arms, rotates with Tilt angle)
+        // 3. Tilt Group (Pivot at elevation axle center Y=1.40, rotates around X-axis)
         this.tiltGroup = new THREE.Group();
-        this.tiltGroup.position.set(0, 0.95, 0); // Elevation axle center
+        this.tiltGroup.position.set(0, 1.40, 0);
         this.panGroup.add(this.tiltGroup);
 
-        // Tilt Axle
-        const axleGeo = new THREE.CylinderGeometry(0.08, 0.08, 1.1, 16);
-        const axle = new THREE.Mesh(axleGeo, matBase);
-        axle.rotation.z = Math.PI / 2;
-        this.tiltGroup.add(axle);
-
-        // Camera / Sensor Center Payload Body
-        const bodyGeo = new THREE.BoxGeometry(0.65, 0.45, 0.85);
-        const body = new THREE.Mesh(bodyGeo, matTiltPayload);
-        this.tiltGroup.add(body);
-
-        // Payload Optics / Barrel (points forward in -Z direction)
-        const barrelGeo = new THREE.CylinderGeometry(0.18, 0.2, 0.4, 32);
-        const barrel = new THREE.Mesh(barrelGeo, matLens);
-        barrel.rotation.x = Math.PI / 2;
-        barrel.position.set(0, 0, -0.55);
-        this.tiltGroup.add(barrel);
-
-        // Front Glass element
-        const glassGeo = new THREE.CircleGeometry(0.17, 32);
-        const glassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.1, metalness: 0.9 });
-        const glass = new THREE.Mesh(glassGeo, glassMat);
-        glass.position.set(0, 0, -0.751);
-        glass.rotation.y = Math.PI;
-        this.tiltGroup.add(glass);
-
-        // Target Line / Beam projecting from sensor forward
-        const laserGeo = new THREE.CylinderGeometry(0.015, 0.015, 5.0, 8);
+        // Target Line / Beam projecting forward along -Z direction
+        const laserGeo = new THREE.CylinderGeometry(0.015, 0.015, 6.0, 8);
         const laser = new THREE.Mesh(laserGeo, matLaser);
-        laser.position.set(0, 0, -3.25);
+        laser.position.set(0, 0, -3.5);
         laser.rotation.x = Math.PI / 2;
         this.tiltGroup.add(laser);
         this.targetLaser = laser;
+
+        // Target Reticle Circle at laser tip
+        const reticleGeo = new THREE.RingGeometry(0.15, 0.18, 24);
+        const reticleMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, side: THREE.DoubleSide });
+        const reticle = new THREE.Mesh(reticleGeo, reticleMat);
+        reticle.position.set(0, 0, -6.5);
+        this.tiltGroup.add(reticle);
+
+        // --- Build Placeholder / Fallback Geometries ---
+        this.placeholderBase = new THREE.Mesh(new THREE.CylinderGeometry(0.84, 0.84, 0.2, 32), matBase);
+        this.placeholderBase.position.y = 0.1;
+        this.baseGroup.add(this.placeholderBase);
+
+        this.placeholderPan = new THREE.Group();
+        const panDiscMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.15, 32), matPanTurntable);
+        panDiscMesh.position.y = 0.25;
+        this.placeholderPan.add(panDiscMesh);
+
+        const armGeo = new THREE.BoxGeometry(0.18, 1.1, 0.3);
+        const armLeft = new THREE.Mesh(armGeo, matFork);
+        armLeft.position.set(-0.55, 0.85, 0);
+        this.placeholderPan.add(armLeft);
+
+        const armRight = new THREE.Mesh(armGeo, matFork);
+        armRight.position.set(0.55, 0.85, 0);
+        this.placeholderPan.add(armRight);
+        this.panGroup.add(this.placeholderPan);
+
+        this.placeholderTilt = new THREE.Group();
+        const axleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 16), matBase);
+        axleMesh.rotation.z = Math.PI / 2;
+        this.placeholderTilt.add(axleMesh);
+
+        const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.45, 0.85), matTiltPayload);
+        this.placeholderTilt.add(bodyMesh);
+
+        const barrelMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.4, 32), matLens);
+        barrelMesh.rotation.x = Math.PI / 2;
+        barrelMesh.position.set(0, 0, -0.55);
+        this.placeholderTilt.add(barrelMesh);
+        this.tiltGroup.add(this.placeholderTilt);
+
+        // --- Asynchronously Load Real CAD STL Models ---
+        this.loadSTLModels();
+    }
+
+    loadSTLModels() {
+        if (!window.THREE || !window.THREE.STLLoader) {
+            console.log("STLLoader not ready, using geometric visualizer.");
+            return;
+        }
+
+        const loader = new THREE.STLLoader();
+        const matBase = new THREE.MeshStandardMaterial({ 
+            color: 0x1e293b, 
+            roughness: 0.35, 
+            metalness: 0.85 
+        });
+        const matTurretTop = new THREE.MeshStandardMaterial({ 
+            color: 0x0284c7, 
+            roughness: 0.3, 
+            metalness: 0.75 
+        });
+        const matShaft = new THREE.MeshStandardMaterial({ 
+            color: 0x10b981, 
+            roughness: 0.3, 
+            metalness: 0.7 
+        });
+        const matGears = new THREE.MeshStandardMaterial({ 
+            color: 0xf59e0b, 
+            roughness: 0.25, 
+            metalness: 0.85 
+        });
+
+        // 1. Turret Base (Stationary ground mount)
+        loader.load('models/Turret_base.stl', (geometry) => {
+            geometry.computeVertexNormals();
+            geometry.rotateX(-Math.PI / 2);
+            geometry.scale(0.01, 0.01, 0.01);
+            const mesh = new THREE.Mesh(geometry, matBase);
+            mesh.position.set(0, 0.1, 0); // Align bottom to Y=0
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            if (this.placeholderBase) {
+                this.baseGroup.remove(this.placeholderBase);
+                this.placeholderBase = null;
+            }
+            this.baseGroup.add(mesh);
+            console.log("✓ Loaded Turret_base.stl CAD model");
+        }, undefined, (e) => console.warn("Notice: Using procedural base geometry"));
+
+        // 2. Turret Top (Pan rotating fork)
+        loader.load('models/Turret_top.stl', (geometry) => {
+            geometry.computeVertexNormals();
+            geometry.rotateX(-Math.PI / 2);
+            geometry.scale(0.01, 0.01, 0.01);
+            const mesh = new THREE.Mesh(geometry, matTurretTop);
+            mesh.position.set(0, 0.1, 0);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            if (this.placeholderPan) {
+                this.panGroup.remove(this.placeholderPan);
+                this.placeholderPan = null;
+            }
+            this.panGroup.add(mesh);
+            console.log("✓ Loaded Turret_top.stl CAD model");
+        }, undefined, (e) => console.warn("Notice: Using procedural pan fork geometry"));
+
+        // 3. Turret Shaft (Tilt elevation cradle)
+        loader.load('models/Turret_Shaft.stl', (geometry) => {
+            geometry.computeVertexNormals();
+            geometry.center(); // Center on pivot axis
+            geometry.rotateZ(Math.PI / 2);
+            geometry.scale(0.01, 0.01, 0.01);
+            const mesh = new THREE.Mesh(geometry, matShaft);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            if (this.placeholderTilt) {
+                this.tiltGroup.remove(this.placeholderTilt);
+                this.placeholderTilt = null;
+            }
+            this.tiltGroup.add(mesh);
+            console.log("✓ Loaded Turret_Shaft.stl CAD model");
+        }, undefined, (e) => console.warn("Notice: Using procedural tilt cradle geometry"));
+
+        // 4. Stepper Drive Gears & Bushings Accents
+        loader.load('models/Turret_stepper_gears.stl', (geometry) => {
+            geometry.computeVertexNormals();
+            geometry.rotateX(-Math.PI / 2);
+            geometry.scale(0.01, 0.01, 0.01);
+            const mesh = new THREE.Mesh(geometry, matGears);
+            mesh.position.set(-1.0, 0.1, -1.0); // Align with CAD offset
+            this.panGroup.add(mesh);
+            console.log("✓ Loaded Turret_stepper_gears.stl");
+        });
     }
 
     updateAngles(panDeg, tiltDeg, targetPanDeg, targetTiltDeg) {
