@@ -223,6 +223,7 @@ class GimbalVisualizer {
         loader.load('models/Turret_base.stl', (geometry) => {
             geometry.computeVertexNormals();
             geometry.rotateX(-Math.PI / 2);
+            geometry.rotateY(-Math.PI / 2); // 90° clockwise rotation for 0-direction
             geometry.scale(0.01, 0.01, 0.01);
             const mesh = new THREE.Mesh(geometry, matBase);
             mesh.position.set(0, 0.1, 0); // Align bottom to Y=0
@@ -241,6 +242,7 @@ class GimbalVisualizer {
         loader.load('models/Turret_top.stl', (geometry) => {
             geometry.computeVertexNormals();
             geometry.rotateX(-Math.PI / 2);
+            geometry.rotateY(-Math.PI / 2); // 90° clockwise rotation for 0-direction
             geometry.scale(0.01, 0.01, 0.01);
             const mesh = new THREE.Mesh(geometry, matTurretTop);
             mesh.position.set(0, 0.1, 0);
@@ -255,11 +257,12 @@ class GimbalVisualizer {
             console.log("✓ Loaded Turret_top.stl CAD model");
         }, undefined, (e) => console.warn("Notice: Using procedural pan fork geometry"));
 
-        // 3. Turret Shaft (Tilt elevation cradle)
+        // 3. Turret Shaft (Tilt elevation cradle) - Flat horizontal mounting plate
         loader.load('models/Turret_Shaft.stl', (geometry) => {
             geometry.computeVertexNormals();
             geometry.center(); // Center on pivot axis
-            geometry.rotateZ(Math.PI / 2);
+            geometry.rotateX(-Math.PI / 2); // Flat horizontal orientation
+            geometry.rotateY(-Math.PI / 2); // 90° clockwise rotation for 0-direction
             geometry.scale(0.01, 0.01, 0.01);
             const mesh = new THREE.Mesh(geometry, matShaft);
             mesh.castShadow = true;
@@ -277,9 +280,10 @@ class GimbalVisualizer {
         loader.load('models/Turret_stepper_gears.stl', (geometry) => {
             geometry.computeVertexNormals();
             geometry.rotateX(-Math.PI / 2);
+            geometry.rotateY(-Math.PI / 2);
             geometry.scale(0.01, 0.01, 0.01);
             const mesh = new THREE.Mesh(geometry, matGears);
-            mesh.position.set(-1.0, 0.1, -1.0); // Align with CAD offset
+            mesh.position.set(0.1, 0.1, -1.0);
             this.panGroup.add(mesh);
             console.log("✓ Loaded Turret_stepper_gears.stl");
         });
