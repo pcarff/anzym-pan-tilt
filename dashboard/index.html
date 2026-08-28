@@ -143,7 +143,7 @@
                             </div>
                             <div class="imu-axis-col">
                                 <span class="imu-axis-label">Heading (Pan)</span>
-                                <span class="imu-axis-val"><span id="val-imu-yaw">0.0</span>°</span>
+                                <span class="imu-axis-val"><span id="val-imu-yaw">0.0</span>° <span id="val-imu-cardinal" class="imu-cardinal-badge">N</span></span>
                             </div>
                             <div class="imu-axis-col">
                                 <span class="imu-axis-label">Roll (Level)</span>
@@ -160,10 +160,15 @@
                         <div class="imu-remap-row">
                             <label for="select-imu-remap" class="calib-label">Mounting Orientation:</label>
                             <select id="select-imu-remap" class="select-input sm">
-                                <option value="default">Default (Pitch = Tilt)</option>
-                                <option value="swap" selected>Rotated 90° (+Roll = Tilt)</option>
-                                <option value="swap_inv">Rotated 90° (-Roll = Tilt)</option>
-                                <option value="pitch_inv">Inverted (-Pitch = Tilt)</option>
+                                <option value="under_rot90_invyaw" selected>Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W)</option>
+                                <option value="under_rot90_invyaw_90">Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W +90°)</option>
+                                <option value="under_rot90_invyaw_180">Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W +180°)</option>
+                                <option value="under_rot90_invyaw_270">Under-Base Rotated 90° (+Roll=Tilt, Flip E↔W +270°)</option>
+                                <option value="under_flat_invyaw">Under-Base Flat (+Pitch=Tilt, Flip E↔W)</option>
+                                <option value="swap">Top-Mounted Rotated 90° (+Roll=Tilt, Normal Yaw)</option>
+                                <option value="default">Top-Mounted Flat (+Pitch=Tilt, Normal Yaw)</option>
+                                <option value="swap_inv">Inverted Top-Mounted (-Roll=Tilt, Normal Yaw)</option>
+                                <option value="pitch_inv">Inverted Pitch (-Pitch=Tilt, Normal Yaw)</option>
                             </select>
                             <button id="btn-sync-imu" class="btn-sm btn-action" title="Sync Open-Loop Steppers with Absolute IMU Orientation">⚡ Sync to IMU</button>
                         </div>

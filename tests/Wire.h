@@ -12,9 +12,10 @@ public:
     std::queue<uint8_t> readQueue;
 
     void begin() {}
+    void setClock(uint32_t clk) { (void)clk; }
     void beginTransmission(uint8_t addr) { targetAddr = addr; }
     void write(uint8_t val) { lastReg = val; }
-    uint8_t endTransmission() { return 0; }
+    uint8_t endTransmission(bool stop = true) { (void)stop; return 0; }
 
     uint8_t requestFrom(int addr, int len) {
         while (readQueue.size() < (size_t)len) {

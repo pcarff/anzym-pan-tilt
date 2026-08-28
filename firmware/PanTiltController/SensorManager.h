@@ -65,6 +65,7 @@ private:
 
     void updateLimitSwitches();
     void updateAuxSensors(MotionController &motion);
+    void processHomingStateMachine(MotionController &motion);
 };
 
 #endif // SENSOR_MANAGER_H

@@ -539,6 +539,18 @@ body {
     color: #e9d5ff;
 }
 
+.imu-cardinal-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    padding: 1px 4px;
+    border-radius: 3px;
+    vertical-align: middle;
+    margin-left: 2px;
+}
+
 .imu-calib-row {
     display: flex;
     align-items: center;

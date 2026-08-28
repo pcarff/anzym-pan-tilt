@@ -21,6 +21,9 @@
 
 #define F(x) x
 
+#define HEX 16
+#define DEC 10
+
 class MockSerial {
 public:
     std::string rxBuffer;
@@ -36,11 +39,25 @@ public:
     }
     void write(const char* s) { txStream << s; }
     void print(const char* s) { txStream << s; }
-    void print(float f, int prec = 2) { 
+    void print(float f, int prec) { 
+        txStream << std::fixed << std::setprecision(prec) << f; 
+    }
+    void print(double f, int prec = 2) { 
         txStream << std::fixed << std::setprecision(prec) << f; 
     }
     void print(long val) { txStream << val; }
     void print(int val) { txStream << val; }
+    void print(unsigned long val) { txStream << val; }
+    void print(unsigned int val) { txStream << val; }
+    void print(uint8_t val, int base) {
+        if (base == HEX) {
+            std::stringstream ss;
+            ss << std::hex << std::uppercase << (int)val;
+            txStream << ss.str();
+        } else {
+            txStream << (int)val;
+        }
+    }
     void println(const char* s = "") { txStream << s << "\n"; }
     void println(float f, int prec = 2) { 
         txStream << std::fixed << std::setprecision(prec) << f << "\n"; 

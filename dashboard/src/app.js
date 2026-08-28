@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const valImuPitch = document.getElementById('val-imu-pitch');
     const valImuYaw = document.getElementById('val-imu-yaw');
     const valImuRoll = document.getElementById('val-imu-roll');
+    const valImuCardinal = document.getElementById('val-imu-cardinal');
     const imuStatusBadge = document.getElementById('imu-status-badge');
     const pillCalSys = document.getElementById('pill-cal-sys');
     const pillCalGyr = document.getElementById('pill-cal-gyr');
@@ -98,6 +99,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnSyncImu = document.getElementById('btn-sync-imu');
     const selectImuRemap = document.getElementById('select-imu-remap');
     let lastRemappedImu = null;
+
+    function getCardinalDirection(deg) {
+        const d = ((deg % 360) + 360) % 360;
+        const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+        const index = Math.round(d / 22.5) % 16;
+        return directions[index];
+    }
 
     // --- Helper: Terminal Logging ---
     function logTerminal(text, type = 'rx') {
@@ -199,24 +207,75 @@ document.addEventListener('DOMContentLoaded', () => {
             let roll = status.imuRoll;
             let yaw = status.imuYaw;
 
-            const remapMode = selectImuRemap ? selectImuRemap.value : 'swap';
-            if (remapMode === 'swap') {
-                // Sideways 90°: Roll axis measures Tilt elevation
-                pitch = status.imuRoll;
-                roll = status.imuPitch;
-            } else if (remapMode === 'swap_inv') {
-                pitch = -status.imuRoll;
-                roll = status.imuPitch;
-            } else if (remapMode === 'pitch_inv') {
-                pitch = -status.imuPitch;
-                roll = status.imuRoll;
+            const remapMode = selectImuRemap ? selectImuRemap.value : 'under_rot90_invyaw';
+
+            switch (remapMode) {
+                case 'under_rot90_invyaw':
+                    // Under-base sideways: Roll is Tilt, Yaw is inverted (Z points down)
+                    pitch = status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = (360 - status.imuYaw) % 360;
+                    break;
+                case 'under_rot90_invyaw_90':
+                    // Under-base sideways + 90° heading offset
+                    pitch = status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = ((360 - status.imuYaw) + 90) % 360;
+                    break;
+                case 'under_rot90_invyaw_180':
+                    // Under-base sideways + 180° heading offset
+                    pitch = status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = ((360 - status.imuYaw) + 180) % 360;
+                    break;
+                case 'under_rot90_invyaw_270':
+                    // Under-base sideways + 270° heading offset
+                    pitch = status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = ((360 - status.imuYaw) + 270) % 360;
+                    break;
+                case 'under_flat_invyaw':
+                    // Under-base flat: Pitch is Tilt, Yaw is inverted
+                    pitch = status.imuPitch;
+                    roll = status.imuRoll;
+                    yaw = (360 - status.imuYaw) % 360;
+                    break;
+                case 'swap':
+                    // Top-mounted sideways 90°
+                    pitch = status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = status.imuYaw;
+                    break;
+                case 'swap_inv':
+                    pitch = -status.imuRoll;
+                    roll = status.imuPitch;
+                    yaw = status.imuYaw;
+                    break;
+                case 'pitch_inv':
+                    pitch = -status.imuPitch;
+                    roll = status.imuRoll;
+                    yaw = status.imuYaw;
+                    break;
+                case 'default':
+                default:
+                    pitch = status.imuPitch;
+                    roll = status.imuRoll;
+                    yaw = status.imuYaw;
+                    break;
             }
+
+            if (yaw < 0) yaw += 360;
+            if (yaw >= 360) yaw -= 360;
 
             lastRemappedImu = { pitch, roll, yaw };
 
             valImuPitch.textContent = pitch.toFixed(1);
             valImuYaw.textContent = yaw.toFixed(1);
             valImuRoll.textContent = roll.toFixed(1);
+
+            if (valImuCardinal) {
+                valImuCardinal.textContent = getCardinalDirection(yaw);
+            }
 
             pillCalSys.textContent = `SYS: ${status.calSys}`;
             pillCalSys.className = `cal-pill cal-${status.calSys}`;
@@ -480,8 +539,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnSyncImu) {
         btnSyncImu.addEventListener('click', () => {
             if (lastRemappedImu) {
-                logTerminal(`[IMU] Synchronizing stepper coordinates to IMU: Pan=${lastRemappedImu.yaw.toFixed(1)}°, Tilt=${lastRemappedImu.pitch.toFixed(1)}°`, 'sys');
-                send(`SETPOS ${lastRemappedImu.yaw.toFixed(1)} ${lastRemappedImu.pitch.toFixed(1)}`);
+                let panTarget = lastRemappedImu.yaw;
+                if (panTarget > 180) {
+                    panTarget = panTarget - 360;
+                }
+                logTerminal(`[IMU] Synchronizing stepper coordinates to IMU: Pan=${panTarget.toFixed(1)}° (${lastRemappedImu.yaw.toFixed(1)}°), Tilt=${lastRemappedImu.pitch.toFixed(1)}°`, 'sys');
+                send(`SETPOS ${panTarget.toFixed(1)} ${lastRemappedImu.pitch.toFixed(1)}`);
             } else {
                 send('SYNC IMU');
             }
