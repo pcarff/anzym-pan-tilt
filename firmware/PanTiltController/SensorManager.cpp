@@ -3,6 +3,8 @@
 #include <Wire.h>
 
 SensorManager::SensorManager() :
+    bno(BNO055_DEFAULT_ADDR),
+    lastImuReadTime(0),
     homingState(HOMING_IDLE),
     homingStartTime(0),
     homingPanRequested(false),
@@ -16,6 +18,10 @@ SensorManager::SensorManager() :
     readings.imuPitch = 0.0f;
     readings.imuRoll = 0.0f;
     readings.imuYaw = 0.0f;
+    readings.calSys = 0;
+    readings.calGyro = 0;
+    readings.calAccel = 0;
+    readings.calMag = 0;
     readings.temperature = 25.0f;
 }
 
@@ -25,12 +31,15 @@ void SensorManager::init() {
     pinMode(PIN_STATUS_LED, OUTPUT);
     digitalWrite(PIN_STATUS_LED, LOW);
 
-    // Initialize I2C bus for future sensors
-    Wire.begin();
-
     // Initial limit switch read
     readings.panLimitPressed = (digitalRead(PIN_PAN_LIMIT) == LOW);
     readings.tiltLimitPressed = (digitalRead(PIN_TILT_LIMIT) == LOW);
+
+    // Initialize BNO055 IMU via I2C
+    readings.imuAvailable = bno.begin(BNO055_OPR_NDOF);
+    if (readings.imuAvailable) {
+        digitalWrite(PIN_STATUS_LED, HIGH); // Light status LED when IMU detected!
+    }
 }
 
 void SensorManager::updateLimitSwitches() {
@@ -54,8 +63,38 @@ void SensorManager::updateLimitSwitches() {
 }
 
 void SensorManager::updateAuxSensors() {
-    // Extensible hook for future I2C sensors (MPU6050 / BNO055 / etc.)
-    // When an IMU is plugged into SDA/SCL, sensor read code can populate readings.imuPitch/Roll/Yaw
+    unsigned long now = millis();
+    if (now - lastImuReadTime < 50UL) return; // 20 Hz update rate
+    lastImuReadTime = now;
+
+    if (!readings.imuAvailable) {
+        // Attempt periodic reconnection every 2 seconds if sensor was plugged in late
+        static unsigned long lastRetry = 0;
+        if (now - lastRetry > 2000UL) {
+            lastRetry = now;
+            readings.imuAvailable = bno.begin(BNO055_OPR_NDOF);
+        }
+        return;
+    }
+
+    BNO055_Orientation ori;
+    if (bno.readEuler(ori) && ori.valid) {
+        readings.imuYaw   = ori.heading;
+        readings.imuRoll  = ori.roll;
+        readings.imuPitch = ori.pitch;
+    }
+
+    BNO055_Calibration cal;
+    if (bno.readCalibration(cal)) {
+        readings.calSys   = cal.sys;
+        readings.calGyro  = cal.gyro;
+        readings.calAccel = cal.accel;
+        readings.calMag   = cal.mag;
+    }
+}
+
+BNO055_Driver& SensorManager::getIMU() {
+    return bno;
 }
 
 bool SensorManager::startHoming(MotionController &motion, bool homePan, bool homeTilt) {

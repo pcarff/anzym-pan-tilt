@@ -6,7 +6,7 @@
     "start": "python3 -m http.server 8080 --directory dashboard",
     "build:firmware": "mkdir -p build && arduino-builder -compile -hardware /usr/share/arduino/hardware -tools /usr/bin -fqbn arduino:avr:uno -build-path $(pwd)/build $(pwd)/firmware/PanTiltController/PanTiltController.ino",
     "flash": "avrdude -v -patmega328p -carduino -P/dev/ttyACM0 -b115200 -D -Uflash:w:$(pwd)/build/PanTiltController.ino.hex:i",
-    "test:firmware": "g++ -std=c++17 -I./tests -I./firmware/PanTiltController tests/test_firmware.cpp firmware/PanTiltController/MotionController.cpp firmware/PanTiltController/SensorManager.cpp firmware/PanTiltController/CommandParser.cpp -o test_runner && ./test_runner"
+    "test:firmware": "g++ -std=c++17 -I./tests -I./firmware/PanTiltController tests/test_firmware.cpp firmware/PanTiltController/MotionController.cpp firmware/PanTiltController/SensorManager.cpp firmware/PanTiltController/CommandParser.cpp firmware/PanTiltController/BNO055_Driver.cpp -o test_runner && ./test_runner"
   },
   "keywords": [
     "pan-tilt",

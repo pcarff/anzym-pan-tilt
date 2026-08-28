@@ -98,7 +98,7 @@ class SerialController {
     }
 
     parseStatusPacket(line) {
-        // Line format: STATUS P=0.00 T=0.00 TP=0.00 TT=0.00 SP=0.0 ST=0.0 MV=0 EN=1 LP=0 LT=0
+        // Line format: STATUS P=0.00 T=0.00 TP=0.00 TT=0.00 SP=0.0 ST=0.0 MV=0 EN=1 LP=0 LT=0 IP=0.00 IR=0.00 IY=0.00 IC=3,3,3,3
         try {
             const tokens = line.substring(7).trim().split(/\s+/);
             const status = {
@@ -112,6 +112,14 @@ class SerialController {
                 enabled: true,
                 limitPan: false,
                 limitTilt: false,
+                imuAvailable: false,
+                imuPitch: 0,
+                imuRoll: 0,
+                imuYaw: 0,
+                calSys: 0,
+                calGyro: 0,
+                calAccel: 0,
+                calMag: 0,
                 timestamp: Date.now()
             };
 
@@ -130,6 +138,19 @@ class SerialController {
                     case 'EN': status.enabled = (val === '1' || val === 'true'); break;
                     case 'LP': status.limitPan = (val === '1'); break;
                     case 'LT': status.limitTilt = (val === '1'); break;
+                    case 'IP': status.imuPitch = parseFloat(val); status.imuAvailable = true; break;
+                    case 'IR': status.imuRoll = parseFloat(val); status.imuAvailable = true; break;
+                    case 'IY': status.imuYaw = parseFloat(val); status.imuAvailable = true; break;
+                    case 'IC': {
+                        const calParts = val.split(',');
+                        if (calParts.length >= 4) {
+                            status.calSys = parseInt(calParts[0], 10) || 0;
+                            status.calGyro = parseInt(calParts[1], 10) || 0;
+                            status.calAccel = parseInt(calParts[2], 10) || 0;
+                            status.calMag = parseInt(calParts[3], 10) || 0;
+                        }
+                        break;
+                    }
                 }
             }
             return status;

@@ -155,6 +155,23 @@ void CommandParser::handleCommandLine(char *line, MotionController &motion, Sens
         motion.setPosition(p, t);
         Serial.println(F("OK"));
     }
+    else if (strcmp(verb, "SYNC") == 0) {
+        toUpperStr(args);
+        if (strstr(args, "IMU")) {
+            const SensorReadings &readings = sensors.getReadings();
+            if (readings.imuAvailable) {
+                motion.setPosition(readings.imuYaw, readings.imuPitch);
+                Serial.print(F("OK SYNCED_IMU P="));
+                Serial.print(motion.getPanDeg(), 2);
+                Serial.print(F(" T="));
+                Serial.println(motion.getTiltDeg(), 2);
+            } else {
+                Serial.println(F("ERR IMU_NOT_DETECTED"));
+            }
+        } else {
+            Serial.println(F("ERR UNKNOWN_SYNC_TARGET"));
+        }
+    }
     else if (strcmp(verb, "HOME") == 0) {
         toUpperStr(args);
         bool homePan = true;
@@ -286,7 +303,7 @@ void CommandParser::handleCommandLine(char *line, MotionController &motion, Sens
 }
 
 void CommandParser::sendTelemetry(const MotionController &motion, const SensorManager &sensors) {
-    // Format: STATUS P=<curr_pan> T=<curr_tilt> TP=<tgt_pan> TT=<tgt_tilt> SP=<spd_pan> ST=<spd_tilt> MV=<moving> EN=<enabled> LP=<pan_lim> LT=<tilt_lim>
+    const SensorReadings &readings = sensors.getReadings();
     Serial.print(F("STATUS P="));
     Serial.print(motion.getPanDeg(), 2);
     Serial.print(F(" T="));
@@ -304,9 +321,25 @@ void CommandParser::sendTelemetry(const MotionController &motion, const SensorMa
     Serial.print(F(" EN="));
     Serial.print(motion.isEnabled() ? 1 : 0);
     Serial.print(F(" LP="));
-    Serial.print(sensors.isPanLimitPressed() ? 1 : 0);
+    Serial.print(readings.panLimitPressed ? 1 : 0);
     Serial.print(F(" LT="));
-    Serial.print(sensors.isTiltLimitPressed() ? 1 : 0);
+    Serial.print(readings.tiltLimitPressed ? 1 : 0);
+    if (readings.imuAvailable) {
+        Serial.print(F(" IP="));
+        Serial.print(readings.imuPitch, 2);
+        Serial.print(F(" IR="));
+        Serial.print(readings.imuRoll, 2);
+        Serial.print(F(" IY="));
+        Serial.print(readings.imuYaw, 2);
+        Serial.print(F(" IC="));
+        Serial.print(readings.calSys);
+        Serial.print(',');
+        Serial.print(readings.calGyro);
+        Serial.print(',');
+        Serial.print(readings.calAccel);
+        Serial.print(',');
+        Serial.print(readings.calMag);
+    }
     Serial.println();
 }
 

@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include "Config.h"
+#include "BNO055_Driver.h"
 
 enum HomingState {
     HOMING_IDLE,
@@ -21,6 +22,10 @@ struct SensorReadings {
     float imuPitch;
     float imuRoll;
     float imuYaw;
+    uint8_t calSys;
+    uint8_t calGyro;
+    uint8_t calAccel;
+    uint8_t calMag;
     float temperature;
 };
 
@@ -42,9 +47,13 @@ public:
     bool isTiltLimitPressed() const;
 
     const SensorReadings& getReadings() const;
+    BNO055_Driver& getIMU();
 
 private:
     SensorReadings readings;
+    BNO055_Driver bno;
+    unsigned long lastImuReadTime;
+
     HomingState homingState;
     unsigned long homingStartTime;
     bool homingPanRequested;

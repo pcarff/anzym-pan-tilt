@@ -128,6 +128,37 @@
                         </div>
                         <div class="readout-sub">Loop Rate: <span id="val-telemetry-rate">10</span> Hz</div>
                     </div>
+
+                    <!-- BNO055 IMU Live Orientation Card -->
+                    <div class="readout-card imu-card">
+                        <div class="readout-label">
+                            <span class="axis-dot imu-dot"></span>
+                            <span>BNO055 IMU Ground Truth (9-DOF)</span>
+                            <span id="imu-status-badge" class="badge-sm badge-inactive">Offline</span>
+                        </div>
+                        <div class="imu-readout-grid">
+                            <div class="imu-axis-col">
+                                <span class="imu-axis-label">Pitch (Tilt)</span>
+                                <span class="imu-axis-val"><span id="val-imu-pitch">0.0</span>°</span>
+                            </div>
+                            <div class="imu-axis-col">
+                                <span class="imu-axis-label">Heading (Pan)</span>
+                                <span class="imu-axis-val"><span id="val-imu-yaw">0.0</span>°</span>
+                            </div>
+                            <div class="imu-axis-col">
+                                <span class="imu-axis-label">Roll (Level)</span>
+                                <span class="imu-axis-val"><span id="val-imu-roll">0.0</span>°</span>
+                            </div>
+                        </div>
+                        <div class="imu-calib-row">
+                            <span class="calib-label">Calibration:</span>
+                            <span id="pill-cal-sys" class="cal-pill" title="System Calibration (0-3)">SYS: 0</span>
+                            <span id="pill-cal-gyr" class="cal-pill" title="Gyroscope Calibration (0-3)">GYR: 0</span>
+                            <span id="pill-cal-acc" class="cal-pill" title="Accelerometer Calibration (0-3)">ACC: 0</span>
+                            <span id="pill-cal-mag" class="cal-pill" title="Magnetometer Calibration (0-3)">MAG: 0</span>
+                            <button id="btn-sync-imu" class="btn-sm btn-action" title="Sync Open-Loop Steppers with Absolute IMU Orientation">⚡ Sync to IMU</button>
+                        </div>
+                    </div>
                 </div>
             </section>
 

@@ -86,6 +86,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const presetsList = document.getElementById('presets-list');
     const btnSaveCurrentPreset = document.getElementById('btn-save-current-preset');
 
+    // IMU Elements
+    const valImuPitch = document.getElementById('val-imu-pitch');
+    const valImuYaw = document.getElementById('val-imu-yaw');
+    const valImuRoll = document.getElementById('val-imu-roll');
+    const imuStatusBadge = document.getElementById('imu-status-badge');
+    const pillCalSys = document.getElementById('pill-cal-sys');
+    const pillCalGyr = document.getElementById('pill-cal-gyr');
+    const pillCalAcc = document.getElementById('pill-cal-acc');
+    const pillCalMag = document.getElementById('pill-cal-mag');
+    const btnSyncImu = document.getElementById('btn-sync-imu');
+
     // --- Helper: Terminal Logging ---
     function logTerminal(text, type = 'rx') {
         const line = document.createElement('div');
@@ -127,6 +138,10 @@ document.addEventListener('DOMContentLoaded', () => {
         btnMockMode.classList.remove('btn-primary');
         motionStatus.textContent = 'State: Idle';
         motionStatus.className = 'badge badge-idle';
+        if (imuStatusBadge) {
+            imuStatusBadge.textContent = 'Offline';
+            imuStatusBadge.className = 'badge-sm badge-inactive';
+        }
         logTerminal('[SYS] Disconnected', 'sys');
     };
 
@@ -172,6 +187,27 @@ document.addEventListener('DOMContentLoaded', () => {
         // Limit switches
         panLimitPill.className = status.limitPan ? 'pill pill-triggered' : 'pill pill-off';
         tiltLimitPill.className = status.limitTilt ? 'pill pill-triggered' : 'pill pill-off';
+
+        // IMU Telemetry Updates
+        if (status.imuAvailable && valImuPitch) {
+            imuStatusBadge.textContent = 'Active (9-DOF)';
+            imuStatusBadge.className = 'badge-sm badge-active';
+            valImuPitch.textContent = status.imuPitch.toFixed(1);
+            valImuYaw.textContent = status.imuYaw.toFixed(1);
+            valImuRoll.textContent = status.imuRoll.toFixed(1);
+
+            pillCalSys.textContent = `SYS: ${status.calSys}`;
+            pillCalSys.className = `cal-pill cal-${status.calSys}`;
+            pillCalGyr.textContent = `GYR: ${status.calGyro}`;
+            pillCalGyr.className = `cal-pill cal-${status.calGyro}`;
+            pillCalAcc.textContent = `ACC: ${status.calAccel}`;
+            pillCalAcc.className = `cal-pill cal-${status.calAccel}`;
+            pillCalMag.textContent = `MAG: ${status.calMag}`;
+            pillCalMag.className = `cal-pill cal-${status.calMag}`;
+        } else if (imuStatusBadge) {
+            imuStatusBadge.textContent = 'Offline';
+            imuStatusBadge.className = 'badge-sm badge-inactive';
+        }
 
         // Update 3D visualizer
         visualizer.updateAngles(status.pan, status.tilt, status.targetPan, status.targetTilt);
@@ -416,6 +452,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btnTest45Tilt.addEventListener('click', () => {
             logTerminal('[CALIBRATION] Executing 45° Tilt Scale Test (Tilt=45°)...', 'sys');
             send('MOVE T=45');
+        });
+    }
+
+    if (btnSyncImu) {
+        btnSyncImu.addEventListener('click', () => {
+            logTerminal('[IMU] Synchronizing open-loop stepper coordinates to BNO055 ground truth...', 'sys');
+            send('SYNC IMU');
         });
     }
 
