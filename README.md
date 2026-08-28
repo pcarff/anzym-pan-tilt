@@ -2,6 +2,8 @@
 
 A professional dual-axis stepper motor controller and real-time dashboard for Pan-Tilt (Azimuth-Elevation) tracking and positioning systems. Built for Arduino Uno interfacing with **AutomationDirect SureStep STP-DRV-6575** microstepping drives.
 
+![Pan-Tilt Controller Real-Time Dashboard](docs/images/dashboard-screenshot.png)
+
 ---
 
 ## 🌟 Key Features
