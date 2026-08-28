@@ -96,6 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const pillCalAcc = document.getElementById('pill-cal-acc');
     const pillCalMag = document.getElementById('pill-cal-mag');
     const btnSyncImu = document.getElementById('btn-sync-imu');
+    const selectImuRemap = document.getElementById('select-imu-remap');
+    let lastRemappedImu = null;
 
     // --- Helper: Terminal Logging ---
     function logTerminal(text, type = 'rx') {
@@ -192,9 +194,29 @@ document.addEventListener('DOMContentLoaded', () => {
         if (status.imuAvailable && valImuPitch) {
             imuStatusBadge.textContent = 'Active (9-DOF)';
             imuStatusBadge.className = 'badge-sm badge-active';
-            valImuPitch.textContent = status.imuPitch.toFixed(1);
-            valImuYaw.textContent = status.imuYaw.toFixed(1);
-            valImuRoll.textContent = status.imuRoll.toFixed(1);
+
+            let pitch = status.imuPitch;
+            let roll = status.imuRoll;
+            let yaw = status.imuYaw;
+
+            const remapMode = selectImuRemap ? selectImuRemap.value : 'swap';
+            if (remapMode === 'swap') {
+                // Sideways 90°: Roll axis measures Tilt elevation
+                pitch = status.imuRoll;
+                roll = status.imuPitch;
+            } else if (remapMode === 'swap_inv') {
+                pitch = -status.imuRoll;
+                roll = status.imuPitch;
+            } else if (remapMode === 'pitch_inv') {
+                pitch = -status.imuPitch;
+                roll = status.imuRoll;
+            }
+
+            lastRemappedImu = { pitch, roll, yaw };
+
+            valImuPitch.textContent = pitch.toFixed(1);
+            valImuYaw.textContent = yaw.toFixed(1);
+            valImuRoll.textContent = roll.toFixed(1);
 
             pillCalSys.textContent = `SYS: ${status.calSys}`;
             pillCalSys.className = `cal-pill cal-${status.calSys}`;
@@ -457,8 +479,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (btnSyncImu) {
         btnSyncImu.addEventListener('click', () => {
-            logTerminal('[IMU] Synchronizing open-loop stepper coordinates to BNO055 ground truth...', 'sys');
-            send('SYNC IMU');
+            if (lastRemappedImu) {
+                logTerminal(`[IMU] Synchronizing stepper coordinates to IMU: Pan=${lastRemappedImu.yaw.toFixed(1)}°, Tilt=${lastRemappedImu.pitch.toFixed(1)}°`, 'sys');
+                send(`SETPOS ${lastRemappedImu.yaw.toFixed(1)} ${lastRemappedImu.pitch.toFixed(1)}`);
+            } else {
+                send('SYNC IMU');
+            }
         });
     }
 

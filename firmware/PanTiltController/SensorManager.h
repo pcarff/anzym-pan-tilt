@@ -64,8 +64,7 @@ private:
     uint8_t tiltDebounceCounter;
 
     void updateLimitSwitches();
-    void updateAuxSensors();
-    void processHomingStateMachine(MotionController &motion);
+    void updateAuxSensors(MotionController &motion);
 };
 
 #endif // SENSOR_MANAGER_H

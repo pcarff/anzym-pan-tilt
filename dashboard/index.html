@@ -156,6 +156,15 @@
                             <span id="pill-cal-gyr" class="cal-pill" title="Gyroscope Calibration (0-3)">GYR: 0</span>
                             <span id="pill-cal-acc" class="cal-pill" title="Accelerometer Calibration (0-3)">ACC: 0</span>
                             <span id="pill-cal-mag" class="cal-pill" title="Magnetometer Calibration (0-3)">MAG: 0</span>
+                        </div>
+                        <div class="imu-remap-row">
+                            <label for="select-imu-remap" class="calib-label">Mounting Orientation:</label>
+                            <select id="select-imu-remap" class="select-input sm">
+                                <option value="default">Default (Pitch = Tilt)</option>
+                                <option value="swap" selected>Rotated 90° (+Roll = Tilt)</option>
+                                <option value="swap_inv">Rotated 90° (-Roll = Tilt)</option>
+                                <option value="pitch_inv">Inverted (-Pitch = Tilt)</option>
+                            </select>
                             <button id="btn-sync-imu" class="btn-sm btn-action" title="Sync Open-Loop Steppers with Absolute IMU Orientation">⚡ Sync to IMU</button>
                         </div>
                     </div>
@@ -169,6 +178,7 @@
                     <div class="control-actions">
                         <button id="btn-toggle-enable" class="btn-sm btn-outline">Enable Drives</button>
                         <button id="btn-zero-axes" class="btn-sm btn-calibrate-sm" title="Calibrate & Set Home (0°, 0°)">🎯 Calibrate (0°, 0°)</button>
+                    </div>
                 </div>
 
                 <div class="control-sections-container">

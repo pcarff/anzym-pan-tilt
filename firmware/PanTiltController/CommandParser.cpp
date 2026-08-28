@@ -286,6 +286,35 @@ void CommandParser::handleCommandLine(char *line, MotionController &motion, Sens
             Serial.print(F(" INVT="));
             Serial.println(motion.isTiltDirInverted() ? 1 : 0);
         }
+        else if (strcmp(sub, "IMU") == 0) {
+            SensorManager &s = const_cast<SensorManager&>(sensors);
+            const SensorReadings &r = s.getReadings();
+            BNO055_Driver &bno = s.getIMU();
+            Serial.print(F("IMU AVAIL="));
+            Serial.print(r.imuAvailable ? 1 : 0);
+            Serial.print(F(" CHIP=0x"));
+            Serial.print(bno.getChipId(), HEX);
+            Serial.print(F(" MODE=0x"));
+            Serial.print(bno.getOprMode(), HEX);
+            Serial.print(F(" SYS=0x"));
+            Serial.print(bno.getSysStatus(), HEX);
+            Serial.print(F(" ERR=0x"));
+            Serial.print(bno.getSysError(), HEX);
+            Serial.print(F(" P="));
+            Serial.print(r.imuPitch, 2);
+            Serial.print(F(" R="));
+            Serial.print(r.imuRoll, 2);
+            Serial.print(F(" Y="));
+            Serial.print(r.imuYaw, 2);
+            Serial.print(F(" CAL="));
+            Serial.print(r.calSys);
+            Serial.print(',');
+            Serial.print(r.calGyro);
+            Serial.print(',');
+            Serial.print(r.calAccel);
+            Serial.print(',');
+            Serial.println(r.calMag);
+        }
         else if (strcmp(sub, "STATUS") == 0) {
             printStatus(motion, sensors);
         }

@@ -35,10 +35,14 @@ void SensorManager::init() {
     readings.panLimitPressed = (digitalRead(PIN_PAN_LIMIT) == LOW);
     readings.tiltLimitPressed = (digitalRead(PIN_TILT_LIMIT) == LOW);
 
-    // Initialize BNO055 IMU via I2C
-    readings.imuAvailable = bno.begin(BNO055_OPR_NDOF);
+    // Initialize I2C bus ONCE (BNO055_Driver::begin no longer calls Wire.begin)
+    Wire.begin();
+    Wire.setClock(100000); // 100 kHz standard mode
+
+    // Initialize BNO055 IMU (IMUPLUS mode for instant gravity pitch/roll)
+    readings.imuAvailable = bno.begin(BNO055_OPR_IMUPLUS);
     if (readings.imuAvailable) {
-        digitalWrite(PIN_STATUS_LED, HIGH); // Light status LED when IMU detected!
+        digitalWrite(PIN_STATUS_LED, HIGH);
     }
 }
 
@@ -62,9 +66,9 @@ void SensorManager::updateLimitSwitches() {
     readings.tiltLimitPressed = (tiltDebounceCounter >= 3);
 }
 
-void SensorManager::updateAuxSensors() {
+void SensorManager::updateAuxSensors(MotionController &motion) {
     unsigned long now = millis();
-    if (now - lastImuReadTime < 50UL) return; // 20 Hz update rate
+    if (now - lastImuReadTime < 100UL) return; // 10 Hz update rate
     lastImuReadTime = now;
 
     if (!readings.imuAvailable) {
@@ -72,8 +76,17 @@ void SensorManager::updateAuxSensors() {
         static unsigned long lastRetry = 0;
         if (now - lastRetry > 2000UL) {
             lastRetry = now;
-            readings.imuAvailable = bno.begin(BNO055_OPR_NDOF);
+            readings.imuAvailable = bno.begin(BNO055_OPR_IMUPLUS);
         }
+        return;
+    }
+
+    // Skip I2C reads while stepper motors are actively moving.
+    // The stepper drive signals (STEP/DIR on D2/D3/D5/D6) generate
+    // electromagnetic interference that couples into the I2C SDA/SCL
+    // lines (A4/A5) on the breadboard, corrupting read data to zeros.
+    // Hold the last good reading until motion stops.
+    if (motion.isMoving()) {
         return;
     }
 
@@ -212,7 +225,7 @@ void SensorManager::processHomingStateMachine(MotionController &motion) {
 
 void SensorManager::update(MotionController &motion) {
     updateLimitSwitches();
-    updateAuxSensors();
+    updateAuxSensors(motion);
     processHomingStateMachine(motion);
 }
 

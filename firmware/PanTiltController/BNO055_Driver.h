@@ -61,6 +61,11 @@ public:
     bool readEuler(BNO055_Orientation &outOri);
     bool readCalibration(BNO055_Calibration &outCal);
 
+    uint8_t getChipId();
+    uint8_t getOprMode();
+    uint8_t getSysStatus();
+    uint8_t getSysError();
+
     void setMode(uint8_t mode);
     void reset();
 
@@ -71,6 +76,7 @@ private:
     uint8_t addr;
     bool connected;
     uint8_t currentMode;
+    uint8_t consecutiveReadFails;
 
     bool writeRegister(uint8_t reg, uint8_t val);
     uint8_t readRegister(uint8_t reg);

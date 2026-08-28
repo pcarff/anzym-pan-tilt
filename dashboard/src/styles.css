@@ -566,6 +566,20 @@ body {
 .cal-pill.cal-2 { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3); }
 .cal-pill.cal-3 { background: rgba(16, 185, 129, 0.2); color: #34d399; border-color: rgba(16, 185, 129, 0.4); font-weight: 700; }
 
+.imu-remap-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.imu-remap-row .select-input.sm {
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    flex: 1;
+}
+
 /* ==========================================================================
    Column 2: Motion Controls (Joystick, D-Pad, Goto)
    ========================================================================== */
