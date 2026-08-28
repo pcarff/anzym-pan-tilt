@@ -261,7 +261,8 @@ class GimbalVisualizer {
         loader.load('models/Turret_Shaft.stl', (geometry) => {
             geometry.computeVertexNormals();
             geometry.center(); // Center on elevation pivot axis
-            geometry.rotateY(Math.PI / 2); // Spans horizontally across left & right arms; flat bridge plate faces UP
+            geometry.rotateY(Math.PI / 2); // Spans horizontally across left & right arms
+            geometry.rotateX(Math.PI);     // Flip right-side up along the axle
             geometry.scale(0.01, 0.01, 0.01);
             const mesh = new THREE.Mesh(geometry, matShaft);
             mesh.castShadow = true;
