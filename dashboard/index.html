@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pan-Tilt (Alt-Az) Motion Controller</title>
+    <link rel="stylesheet" href="src/styles.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Three.js & OrbitControls for 3D Visualizer -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation / Header -->
+        <header class="top-nav">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="9"/>
+                        <line x1="12" y1="3" x2="12" y2="7"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                        <line x1="3" y1="12" x2="7" y2="12"/>
+                        <line x1="17" y1="12" x2="21" y2="12"/>
+                        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Pan-Tilt Controller</h1>
+                    <span class="subtitle">Alt-Azimuth Dual Stepper Control System</span>
+                </div>
+            </div>
+
+            <!-- Connection & Global Controls -->
+            <div class="header-controls">
+                <div class="connection-group">
+                    <select id="baud-select" class="select-input" title="Baud Rate">
+                        <option value="115200" selected>115200 Baud</option>
+                        <option value="57600">57600 Baud</option>
+                        <option value="38400">38400 Baud</option>
+                        <option value="9600">9600 Baud</option>
+                    </select>
+
+                    <button id="btn-connect" class="btn btn-primary">
+                        <span class="btn-icon">⚡</span>
+                        <span id="connect-text">Connect Serial</span>
+                    </button>
+
+                    <button id="btn-mock-mode" class="btn btn-outline" title="Toggle Mock Simulator for Testing without Hardware">
+                        <span class="btn-icon">🎮</span>
+                        <span>Simulator Mode</span>
+                    </button>
+                </div>
+
+                <div class="status-badge-group">
+                    <span id="conn-status" class="badge badge-disconnected">Disconnected</span>
+                    <span id="drive-status" class="badge badge-idle">Drives: Off</span>
+                    <span id="motion-status" class="badge badge-idle">State: Idle</span>
+                </div>
+
+                <button id="btn-estop" class="btn btn-estop" title="Emergency Stop & Disable Steppers">
+                    <span>🛑 E-STOP</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="dashboard-grid">
+            
+            <!-- Column 1: Interactive 3D Viewport & Angle Gauges -->
+            <section class="panel viewport-panel">
+                <div class="panel-header">
+                    <h2>Orientation & 3D Gimbal View</h2>
+                    <div class="viewport-actions">
+                        <button id="btn-reset-cam" class="btn-sm btn-ghost" title="Reset Camera View">Reset Cam</button>
+                        <button id="btn-center-view" class="btn-sm btn-ghost" title="Point Horizon North">Horizon (0°,0°)</button>
+                    </div>
+                </div>
+
+                <!-- 3D Canvas Container -->
+                <div id="visualizer-container" class="canvas-viewport">
+                    <canvas id="gl-canvas"></canvas>
+                    <div class="viewport-overlay">
+                        <div class="compass-indicator">
+                            <span class="cardinal north">N (0°)</span>
+                            <span class="cardinal east">E (+90°)</span>
+                            <span class="cardinal south">S (±180°)</span>
+                            <span class="cardinal west">W (-90°)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Digital Readout Gauges -->
+                <div class="telemetry-readout-grid">
+                    <div class="readout-card pan-card">
+                        <div class="readout-label">
+                            <span class="axis-dot pan-dot"></span>
+                            <span>Pan / Azimuth (θ)</span>
+                        </div>
+                        <div class="readout-value">
+                            <span id="val-pan-deg">0.00</span><span class="unit">°</span>
+                        </div>
+                        <div class="readout-sub">Target: <span id="val-tgt-pan">0.00</span>° | Spd: <span id="val-spd-pan">0.0</span>°/s</div>
+                    </div>
+
+                    <div class="readout-card tilt-card">
+                        <div class="readout-label">
+                            <span class="axis-dot tilt-dot"></span>
+                            <span>Tilt / Altitude (φ)</span>
+                        </div>
+                        <div class="readout-value">
+                            <span id="val-tilt-deg">0.00</span><span class="unit">°</span>
+                        </div>
+                        <div class="readout-sub">Target: <span id="val-tgt-tilt">0.00</span>° | Spd: <span id="val-spd-tilt">0.0</span>°/s</div>
+                    </div>
+
+                    <div class="readout-card info-card">
+                        <div class="readout-label">
+                            <span>System Status</span>
+                        </div>
+                        <div class="status-pill-list">
+                            <span id="pan-limit-pill" class="pill pill-off">Pan Endstop</span>
+                            <span id="tilt-limit-pill" class="pill pill-off">Tilt Endstop</span>
+                            <span id="limits-pill" class="pill pill-active">Soft Limits ON</span>
+                        </div>
+                        <div class="readout-sub">Loop Rate: <span id="val-telemetry-rate">10</span> Hz</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Column 2: Jog Controls, D-Pad, Target Angles -->
+            <section class="panel control-panel">
+                <div class="panel-header">
+                    <h2>Motion Controls</h2>
+                    <div class="control-actions">
+                        <button id="btn-toggle-enable" class="btn-sm btn-outline">Enable Drives</button>
+                        <button id="btn-zero-axes" class="btn-sm btn-calibrate-sm" title="Calibrate & Set Home (0°, 0°)">🎯 Calibrate (0°, 0°)</button>
+                </div>
+
+                <div class="control-sections-container">
+                    <!-- Zero / Calibration Quick Bar -->
+                    <!-- 2D Virtual Joystick -->
+                    <div class="control-card joystick-card">
+                        <div class="card-title">Continuous Velocity Jog</div>
+                        <div class="joystick-wrapper">
+                            <div id="joystick-base" class="joystick-base">
+                                <div id="joystick-stick" class="joystick-stick"></div>
+                                <div class="joy-axis-label top">Tilt Up (+Y)</div>
+                                <div class="joy-axis-label bottom">Tilt Down (-Y)</div>
+                                <div class="joy-axis-label left">Pan Left (-X)</div>
+                                <div class="joy-axis-label right">Pan Right (+X)</div>
+                            </div>
+                        </div>
+                        <div class="joystick-hint">Drag stick to jog continuously • Releases back to center stop</div>
+                    </div>
+
+                    <!-- Step Nudge D-Pad -->
+                    <div class="control-card dpad-card">
+                        <div class="card-title">
+                            <span>Precision Step Nudge</span>
+                            <div class="step-size-selector">
+                                <span class="step-label">Step:</span>
+                                <button class="step-btn" data-step="0.1">0.1°</button>
+                                <button class="step-btn" data-step="0.5">0.5°</button>
+                                <button class="step-btn active" data-step="1.0">1.0°</button>
+                                <button class="step-btn" data-step="5.0">5.0°</button>
+                                <button class="step-btn" data-step="10.0">10.0°</button>
+                            </div>
+                        </div>
+
+                        <div class="dpad-grid">
+                            <div class="dpad-cell"></div>
+                            <button id="btn-nudge-up" class="btn-dpad" title="Nudge Tilt Up">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 4l-8 8h6v8h4v-8h6z"/></svg>
+                                <span>+Tilt</span>
+                            </button>
+                            <div class="dpad-cell"></div>
+
+                            <button id="btn-nudge-left" class="btn-dpad" title="Nudge Pan Left">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 12l8-8v6h8v4h-8v6z"/></svg>
+                                <span>-Pan</span>
+                            </button>
+                            <button id="btn-nudge-center" class="btn-dpad btn-center" title="Center (0°,0°)">
+                                <span>CENTER</span>
+                            </button>
+                            <button id="btn-nudge-right" class="btn-dpad" title="Nudge Pan Right">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 12l-8 8v-6H4v-4h8V4z"/></svg>
+                                <span>+Pan</span>
+                            </button>
+
+                            <div class="dpad-cell"></div>
+                            <button id="btn-nudge-down" class="btn-dpad" title="Nudge Tilt Down">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20l8-8h-6V4h-4v8H4z"/></svg>
+                                <span>-Tilt</span>
+                            </button>
+                            <div class="dpad-cell"></div>
+                        </div>
+                    </div>
+
+                    <!-- Absolute Coordinate Positioning -->
+                    <div class="control-card goto-card">
+                        <div class="card-title">Absolute Target Slew</div>
+                        
+                        <!-- Pan Target -->
+                        <div class="target-row">
+                            <label class="target-label" for="input-target-pan">Pan (Azimuth):</label>
+                            <input type="range" id="slider-target-pan" min="-180" max="180" step="0.5" value="0" class="angle-slider">
+                            <div class="input-with-unit">
+                                <input type="number" id="input-target-pan" min="-180" max="180" step="0.1" value="0.0" class="number-input">
+                                <span class="input-unit">°</span>
+                            </div>
+                        </div>
+
+                        <!-- Tilt Target -->
+                        <div class="target-row">
+                            <label class="target-label" for="input-target-tilt">Tilt (Altitude):</label>
+                            <input type="range" id="slider-target-tilt" min="-45" max="90" step="0.5" value="0" class="angle-slider">
+                            <div class="input-with-unit">
+                                <input type="number" id="input-target-tilt" min="-45" max="90" step="0.1" value="0.0" class="number-input">
+                                <span class="input-unit">°</span>
+                            </div>
+                        </div>
+
+                        <!-- Quick Action Buttons -->
+                        <div class="goto-btn-row">
+                            <button id="btn-slew-target" class="btn btn-action">
+                                <span>🎯 Slew To Target</span>
+                            </button>
+                            <button id="btn-stop-motion" class="btn btn-secondary">
+                                <span>⏸ Stop</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Column 3: Presets, Settings & Live Terminal -->
+            <section class="panel presets-panel">
+                
+                <!-- Waypoints / Presets -->
+                <div class="sub-panel">
+                    <div class="panel-header">
+                        <h2>Preset Waypoints</h2>
+                        <button id="btn-save-current-preset" class="btn-sm btn-primary">+ Save Current</button>
+                    </div>
+
+                    <div id="presets-list" class="presets-list">
+                        <!-- Populated dynamically via app.js -->
+                    </div>
+                </div>
+
+                <!-- Axis Calibration & Alignment -->
+                <div class="sub-panel calibration-panel">
+                    <div class="panel-header">
+                        <h2>Scale & Alignment Tuning</h2>
+                    </div>
+
+                    <div class="cal-settings-grid">
+                        <div class="setting-item">
+                            <label for="input-pan-steps-deg">Pan (Steps/°):</label>
+                            <input type="number" id="input-pan-steps-deg" value="111.111" step="0.001" min="0.1" class="number-input sm">
+                        </div>
+                        <div class="setting-item">
+                            <label for="input-tilt-steps-deg">Tilt (Steps/°):</label>
+                            <input type="number" id="input-tilt-steps-deg" value="55.556" step="0.001" min="0.1" class="number-input sm">
+                        </div>
+                    </div>
+
+                    <div class="invert-toggles-row">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="chk-invert-pan" checked> Invert Pan
+                        </label>
+                        <label class="toggle-label">
+                            <input type="checkbox" id="chk-invert-tilt" checked> Invert Tilt
+                        </label>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button id="btn-apply-calibration" class="btn-sm btn-primary">Apply Scale & Invert</button>
+                        <button id="btn-test-90-pan" class="btn-sm btn-outline" title="Slew Pan by 90°">Test 90° Pan</button>
+                        <button id="btn-test-45-tilt" class="btn-sm btn-outline" title="Slew Tilt by 45°">Test 45° Tilt</button>
+                    </div>
+                </div>
+
+                <!-- Motion Settings (Speed, Accel) -->
+                <div class="sub-panel">
+                    <div class="panel-header">
+                        <h2>Speed & Limits Config</h2>
+                    </div>
+
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <label for="input-pan-max-spd">Max Pan Speed (°/s):</label>
+                            <input type="number" id="input-pan-max-spd" value="45" min="1" max="180" class="number-input sm">
+                        </div>
+                        <div class="setting-item">
+                            <label for="input-tilt-max-spd">Max Tilt Speed (°/s):</label>
+                            <input type="number" id="input-tilt-max-spd" value="30" min="1" max="120" class="number-input sm">
+                        </div>
+                        <div class="setting-item">
+                            <label for="input-pan-accel">Pan Accel (°/s²):</label>
+                            <input type="number" id="input-pan-accel" value="90" min="5" max="500" class="number-input sm">
+                        </div>
+                        <div class="setting-item">
+                            <label for="input-tilt-accel">Tilt Accel (°/s²):</label>
+                            <input type="number" id="input-tilt-accel" value="60" min="5" max="500" class="number-input sm">
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button id="btn-apply-settings" class="btn-sm btn-outline">Apply Speeds</button>
+                        <button id="btn-toggle-limits" class="btn-sm btn-outline">Toggle Soft Limits</button>
+                        <button id="btn-home-all" class="btn-sm btn-outline">Run Homing</button>
+                    </div>
+                </div>
+
+                <!-- Serial Terminal Console -->
+                <div class="sub-panel terminal-panel">
+                    <div class="panel-header">
+                        <h2>Serial Console</h2>
+                        <div class="terminal-actions">
+                            <button id="btn-clear-term" class="btn-sm btn-ghost">Clear</button>
+                            <label class="toggle-label">
+                                <input type="checkbox" id="chk-autoscroll" checked> Autoscroll
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="terminal-output" class="terminal-box">
+                        <div class="term-line sys">[SYSTEM] Pan-Tilt Dashboard Ready. Connect via Web Serial or click 'Simulator Mode' to test.</div>
+                    </div>
+
+                    <form id="terminal-form" class="terminal-input-bar">
+                        <input type="text" id="terminal-input" placeholder="Enter serial command (e.g., MOVE 45 30, GET STATUS)..." autocomplete="off" spellcheck="false">
+                        <button type="submit" class="btn-sm btn-primary">Send</button>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="src/serial.js"></script>
+    <script src="src/visualizer.js"></script>
+    <script src="src/app.js"></script>
+</body>
+</html>
+

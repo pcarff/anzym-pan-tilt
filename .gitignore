@@ -1,0 +1,17 @@
+# Build binaries & temp build directories
+build/
+build_test/
+build_idle/
+test_runner
+*.o
+*.out
+*.hex
+
+# Node
+node_modules/
+package-lock.json
+
+# System
+.DS_Store
+Thumbs.db
+
