@@ -169,9 +169,92 @@ $$\mathbf{\text{Steps per Degree} = \frac{2,000 \times \text{Gear Ratio}}{360^\c
 
 ---
 
+## 🧭 Bosch BNO055 9-DOF IMU Sensor Integration
+
+The system integrates an **Adafruit Bosch BNO055 9-DOF Absolute Orientation Sensor** to provide absolute "ground truth" elevation (Tilt) and compass azimuth (Pan) tracking independent of open-loop stepper pulse counts.
+
+```
++-------------------------------------------------------------------------------+
+|                             SYSTEM DATA FLOW                                  |
+|                                                                               |
+|  [BNO055 IMU] --(I2C: A4/A5)--> [SensorManager] --(Serial: 115200)--> [Web]  |
+|   - Accel (3-axis)               - Non-blocking 10Hz    STATUS IP=...   - UI  |
+|   - Gyro  (3-axis)               - EMI Motion Lockout   IR=... IY=...   - 3D  |
+|   - Mag   (3-axis)               - TWI Stop-Start Cond. IC=3,3,3,3      - Sync|
++-------------------------------------------------------------------------------+
+```
+
+### Sensor Specifications & Operation
+- **Onboard Fusion Processor**: 32-bit ARM Cortex-M0 running Bosch Sensortec BSX3.0 Fusion software.
+- **Operating Modes**:
+  - `BNO055_OPR_IMUPLUS` (`0x08`): 6-DOF fusion (Accelerometer + Gyroscope). Highly immune to nearby ferrous metals and motor magnetic fields, providing rapid, rock-solid relative pitch, roll, and relative heading.
+  - `BNO055_OPR_NDOF` (`0x0C`): Full 9-DOF absolute fusion with geomagnetic magnetometer referenced to Magnetic North.
+- **Wiring (Arduino Uno)**:
+  - `Vin` $\to$ `5V`
+  - `GND` $\to$ `GND`
+  - `SDA` $\to$ `A4` (I2C Data)
+  - `SCL` $\to$ `A5` (I2C Clock)
+  - `RST` $\to$ Left floating (software reset via register `0x3F`)
+
+---
+
+### Engineering Challenges & Adaptations
+
+During development and testing on the dual-axis testbed, several hardware and physical constraints were diagnosed and resolved:
+
+#### 1. I2C Bus Hang & Clock-Stretching Mitigation
+- **The Problem**: The BNO055's internal Cortex-M0 processor stretches the I2C clock line (SCL LOW) while computing sensor fusion algorithms. On the ATmega328P, standard repeated-start conditions (`Wire.endTransmission(false)`) can cause the hardware TWI peripheral to lock in an unrecoverable state, causing all subsequent reads to return `0x00` or timeout.
+- **The Fix**: Rewrote the register read routines in [`BNO055_Driver.cpp`](file:///workspaces/anzym_altaz_ws/firmware/PanTiltController/BNO055_Driver.cpp) to use clean **STOP conditions** (`Wire.endTransmission(true)`) followed by fresh START requests. The BNO055 auto-increments internal register pointers across burst reads even after a STOP.
+- **Bus Reinitialization Guard**: Separated `Wire.begin()` and `Wire.setClock(100000)` into `SensorManager::init()` so it is called strictly once.
+
+#### 2. Stepper Motor High-Frequency EMI Immunity
+- **The Problem**: While the stepper drives are executing high-speed moves or multi-axis slewing, high-frequency optocoupler switching and motor phase current pulses induce electrical noise on adjacent I2C breadboard wires (A4/A5). This caused I2C packets during slews to get corrupted to all zeros.
+- **The Fix**: Implemented **Motion-Aware EMI Lockout** in [`SensorManager::updateAuxSensors()`](file:///workspaces/anzym_altaz_ws/firmware/PanTiltController/SensorManager.cpp). When `motion.isMoving()` is true, I2C reads are suspended and the dashboard holds the last validated orientation. As soon as the step pulses complete and the motors settle, live I2C sampling resumes instantly.
+
+#### 3. Under-Base Inverted & Sideways Mounting Transformation
+- **The Problem**: The sensor is mounted on the underside of the tilt bracket, rotated 90° sideways.
+  1. Mounting upside down inverts the vertical Z-axis.
+  2. Facing backward swaps North and South (180° rotation), causing West to read East ($90^\circ$ vs $270^\circ$).
+  3. Sideways orientation swaps the Pitch and Roll measurement axes.
+- **The Fix**: Implemented the **Under-Base 90° (+180° Heading, -Roll = Tilt)** transformation in [`dashboard/src/app.js`](file:///workspaces/anzym_altaz_ws/dashboard/src/app.js):
+  $$\text{Pitch}_{\text{Tilt}} = -\text{Roll}_{\text{raw}}$$
+  $$\text{Roll}_{\text{Level}} = -\text{Pitch}_{\text{raw}}$$
+  $$\text{Heading}_{\text{Pan}} = (\text{Yaw}_{\text{raw}} + 180^\circ) \pmod{360^\circ}$$
+- **Result**: Panning `Pan-` decreases heading naturally towards West ($270^\circ\ \text{W}$), panning `Pan+` increases heading towards East ($90^\circ\ \text{E}$), and tilting up produces positive elevation ($0^\circ \to +90^\circ$).
+
+#### 4. Absolute One-Click Alignment (`⚡ Sync to IMU`)
+- The dashboard includes a **Sync to IMU** button that automatically normalizes the $0^\circ..360^\circ$ compass azimuth to the controller's $[-180^\circ, +180^\circ]$ soft limit coordinate frame and commands `SETPOS <pan> <tilt>`, instantly establishing ground-truth zero without mechanical homing.
+
+---
+
+## 📡 Serial Telemetry & Diagnostic Commands
+
+### Extended Telemetry Packet Format (10 Hz Stream)
+```
+STATUS P=0.00 T=0.00 TP=0.00 TT=0.00 SP=0.0 ST=0.0 MV=0 EN=1 LP=0 LT=0 IP=45.10 IR=0.20 IY=270.00 IC=3,3,3,3
+```
+- `IP`: IMU Ground Truth Pitch ($^\circ$)
+- `IR`: IMU Ground Truth Roll ($^\circ$)
+- `IY`: IMU Ground Truth Yaw / Heading ($0.00^\circ$ to $360.00^\circ$)
+- `IC`: Calibration status matrix `sys,gyro,accel,mag` (values $0$ to $3$, where $3 = \text{Fully Calibrated}$)
+
+### Diagnostic Commands
+- **`GET IMU`**: Queries sensor hardware status and registers directly:
+  ```
+  IMU AVAIL=1 CHIP=0xA0 MODE=0x8 SYS=0x0 ERR=0x0 P=45.10 R=0.20 Y=270.00 CAL=3,3,3,3
+  ```
+- **`SYNC IMU`**: Firmware-level position synchronization with IMU Euler registers.
+
+---
+
 ## 🧪 Testing and Verification
-Unit tests for the motion profiling algorithms, soft limits, coordinate transformations, and command parser can be executed locally:
+Unit tests for the motion profiling algorithms, soft limits, coordinate transformations, BNO055 I2C mocks, and command parser can be executed locally:
 ```bash
-g++ -std=c++17 -I./tests -I./firmware/PanTiltController tests/test_firmware.cpp firmware/PanTiltController/MotionController.cpp firmware/PanTiltController/SensorManager.cpp firmware/PanTiltController/CommandParser.cpp -o test_runner && ./test_runner
+npm run test:firmware
+```
+To compile and upload firmware:
+```bash
+npm run build:firmware   # Compile Arduino Uno hex with arduino-builder
+npm run flash            # Flash to /dev/ttyACM0 via avrdude
 ```
 
