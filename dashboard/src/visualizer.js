@@ -257,12 +257,12 @@ class GimbalVisualizer {
             console.log("✓ Loaded Turret_top.stl CAD model");
         }, undefined, (e) => console.warn("Notice: Using procedural pan fork geometry"));
 
-        // 3. Turret Shaft (Tilt elevation cradle) - Flat horizontal mounting plate
+        // 3. Turret Shaft (Tilt elevation cradle)
         loader.load('models/Turret_Shaft.stl', (geometry) => {
             geometry.computeVertexNormals();
             geometry.center(); // Center on pivot axis
-            geometry.rotateX(-Math.PI / 2); // Flat horizontal orientation
-            geometry.rotateY(-Math.PI / 2); // 90° clockwise rotation for 0-direction
+            geometry.rotateZ(Math.PI / 2); // Restored original Z rotation
+            geometry.rotateY(Math.PI / 2); // 90° rotation on orthogonal axis
             geometry.scale(0.01, 0.01, 0.01);
             const mesh = new THREE.Mesh(geometry, matShaft);
             mesh.castShadow = true;
