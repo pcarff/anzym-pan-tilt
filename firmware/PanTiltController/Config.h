@@ -48,8 +48,8 @@
 #define TILT_MICROSTEPS           10.0f   // 2,000 steps/rev
 
 // Mechanical Gear Reduction (Motor revs per 1 axis rev. 1.0 for direct drive)
-#define PAN_GEAR_RATIO            1.0f    // Adjust if belt/gear reduction is used
-#define TILT_GEAR_RATIO           1.0f    // Adjust if belt/gear reduction is used
+#define PAN_GEAR_RATIO            19.826f // 10-Run Calibrated Average (110.145 steps/deg, 39,652 steps/rev)
+#define TILT_GEAR_RATIO           10.668f // 10-Run Calibrated Average (59.267 steps/deg, 21,336 steps/rev)
 
 // Calculated Steps per Degree
 // steps_per_deg = (steps_per_rev * microsteps * gear_ratio) / 360.0

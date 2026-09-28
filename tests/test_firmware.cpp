@@ -25,7 +25,7 @@ void test_motion_controller() {
     assert(motion.isMoving());
 
     // Simulate time advancing to reach target
-    for (int step = 0; step < 5000; step++) {
+    for (int step = 0; step < 15000; step++) {
         advanceTimeMicros(1000); // 1 ms per loop
         motion.update();
         if (!motion.isMoving()) break;
