@@ -20,6 +20,8 @@ A professional dual-axis stepper motor controller and real-time dashboard for Pa
   - Direct USB Web Serial connection (no backend server required!).
   - Built-in **Simulator Mode** for instant interactive testing without hardware.
   - Interactive **3D Gimbal Visualizer** (Three.js) showing live physical orientation, compass heading, and target reticle.
+  - **📐 2-Point Manual Calibration Studio**: Interactive visual wizard to position start reference, zero step counter, jog/nudge to target angle, calculate steps/deg & gear ratio, cross-check with BNO055 IMU ground truth, and apply live to controller RAM without resetting.
+  - **Multi-Trial Averaging**: Run multiple calibration passes, compute mean scale & standard deviation ($\pm\sigma$), and apply statistically filtered values.
   - **2D Virtual Joystick** for smooth velocity jogging.
   - **Precision Step Nudge D-Pad** ($0.1^\circ, 0.5^\circ, 1.0^\circ, 5.0^\circ, 10.0^\circ$).
   - **Absolute Target Slew** with sliders and direct degree inputs.
@@ -116,6 +118,8 @@ STATUS P=12.50 T=-4.20 TP=12.50 TT=-4.20 SP=0.0 ST=0.0 MV=0 EN=1 LP=0 LT=0
 ---
 
 ## 📐 Angular Scale & Precision Calibration Guide
+
+> 📖 **Comprehensive Guide Available**: For full step-by-step procedures, multi-run statistical averaging, live dashboard wizard steps, and permanent firmware flashing instructions, see [docs/CALIBRATION_PROCEDURES.md](docs/CALIBRATION_PROCEDURES.md).
 
 When tuning your pan-tilt platform to match the commanded degrees ($^\circ$) with 1:1 physical accuracy, use the following formulas:
 
