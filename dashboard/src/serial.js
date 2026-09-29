@@ -250,6 +250,9 @@ class MockControllerSimulator {
         this.tiltMin = -45.0;
         this.tiltMax = 90.0;
 
+        this.panStepsPerDeg = 110.145;
+        this.tiltStepsPerDeg = 59.267;
+
         this.lastTime = Date.now();
     }
 
@@ -402,11 +405,22 @@ class MockControllerSimulator {
             const sub = (parts[1] || '').toUpperCase();
             if (sub === 'POS') {
                 this.parent.onData(`POS P=${this.pan.toFixed(2)} T=${this.tilt.toFixed(2)}`);
+            } else if (sub === 'SCALE') {
+                this.parent.onData(`SCALE P=${this.panStepsPerDeg.toFixed(3)} T=${this.tiltStepsPerDeg.toFixed(3)} INVP=1 INVT=1`);
             } else {
                 this.parent.onData(`STATUS P=${this.pan.toFixed(2)} T=${this.tilt.toFixed(2)} TP=${this.targetPan.toFixed(2)} TT=${this.targetTilt.toFixed(2)} SP=${this.speedPan.toFixed(1)} ST=${this.speedTilt.toFixed(1)} MV=${this.mode !== 'IDLE' ? 1 : 0} EN=${this.enabled ? 1 : 0} LP=0 LT=0`);
             }
         } else if (verb === 'SET') {
-            this.parent.onData("OK");
+            const sub = (parts[1] || '').toUpperCase();
+            if (sub === 'SCALE') {
+                const p = parseFloat(parts[2]) || this.panStepsPerDeg;
+                const t = parseFloat(parts[3]) || this.tiltStepsPerDeg;
+                this.panStepsPerDeg = p;
+                this.tiltStepsPerDeg = t;
+                this.parent.onData(`OK SCALE P=${p.toFixed(3)} T=${t.toFixed(3)}`);
+            } else {
+                this.parent.onData("OK");
+            }
         } else {
             this.parent.onData(`OK`);
         }

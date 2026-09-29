@@ -19,6 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastTelemetryCalc = Date.now();
     let commandHistory = [];
     let historyIndex = -1;
+    let latestStatus = null;
+    let currentPanScale = 110.145;
+    let currentTiltScale = 59.267;
 
     // Default Presets
     const DEFAULT_PRESETS = [
@@ -139,6 +142,9 @@ document.addEventListener('DOMContentLoaded', () => {
             connectText.textContent = 'Disconnect';
             logTerminal('[SYS] Connected to Hardware Serial Port', 'sys');
         }
+        setTimeout(() => {
+            send('GET SCALE');
+        }, 200);
     };
 
     serial.onDisconnect = () => {
@@ -159,9 +165,18 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!line.startsWith('STATUS ')) {
             logTerminal(line, 'rx');
         }
+        const scaleMatch = line.match(/(?:OK\s+)?SCALE\s+P=([0-9.]+)\s+T=([0-9.]+)/i);
+        if (scaleMatch) {
+            currentPanScale = parseFloat(scaleMatch[1]);
+            currentTiltScale = parseFloat(scaleMatch[2]);
+            if (typeof updateCalStudioScales === 'function') {
+                updateCalStudioScales();
+            }
+        }
     };
 
     serial.onStatus = (status) => {
+        latestStatus = status;
         // Update Telemetry rate
         telemetryCount++;
         const now = Date.now();
@@ -288,6 +303,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update 3D visualizer
         visualizer.updateAngles(status.pan, status.tilt, status.targetPan, status.targetTilt);
+
+        // Update 2-Point Calibration Studio Telemetry
+        if (typeof updateCalStudioTelemetry === 'function') {
+            updateCalStudioTelemetry(status);
+        }
     };
 
     serial.onError = (err) => {
@@ -651,6 +671,497 @@ document.addEventListener('DOMContentLoaded', () => {
     btnClearTerm.addEventListener('click', () => {
         terminalOutput.innerHTML = '';
     });
+
+    // =========================================================================
+    // 2-POINT MANUAL STEP CALIBRATION STUDIO
+    // =========================================================================
+
+    // --- Studio DOM Elements ---
+    const modalCalStudio = document.getElementById('modal-cal-studio');
+    const btnOpenCalStudio = document.getElementById('btn-open-cal-studio');
+    const btnOpenCalStudioSub = document.getElementById('btn-open-cal-studio-sub');
+    const btnCloseCalStudio = document.getElementById('btn-close-cal-studio');
+
+    const calTabPan = document.getElementById('cal-tab-pan');
+    const calTabTilt = document.getElementById('cal-tab-tilt');
+    const calActiveScaleVal = document.getElementById('cal-active-scale-val');
+    const calActiveSprVal = document.getElementById('cal-active-spr-val');
+
+    const calElapsedSteps = document.getElementById('cal-elapsed-steps');
+    const calCtrlPos = document.getElementById('cal-ctrl-pos');
+    const calImuBadge = document.getElementById('cal-imu-badge');
+    const calImuVal = document.getElementById('cal-imu-val');
+    const calImuAxis = document.getElementById('cal-imu-axis');
+    const calImuBase = document.getElementById('cal-imu-base');
+    const calImuDelta = document.getElementById('cal-imu-delta');
+
+    const btnCalZeroStart = document.getElementById('btn-cal-zero-start');
+    const calStartStatus = document.getElementById('cal-start-status');
+
+    const calTargetAngleInput = document.getElementById('cal-target-angle-input');
+    const chkUseImuDelta = document.getElementById('chk-use-imu-delta');
+    const btnCalRecordCalculate = document.getElementById('btn-cal-record-calculate');
+    const btnCalToggleCoils = document.getElementById('btn-cal-toggle-coils');
+
+    const calResultsBox = document.getElementById('cal-results-box');
+    const resStepsDeg = document.getElementById('res-steps-deg');
+    const resStepsRev = document.getElementById('res-steps-rev');
+    const resGearRatio = document.getElementById('res-gear-ratio');
+    const resStepsAngle = document.getElementById('res-steps-angle');
+    const resImuCheck = document.getElementById('res-imu-check');
+    const btnCalApplyLive = document.getElementById('btn-cal-apply-live');
+    const btnCalAddHistory = document.getElementById('btn-cal-add-history');
+
+    const calHistoryTbody = document.getElementById('cal-history-tbody');
+    const calAvgBanner = document.getElementById('cal-avg-banner');
+    const valAvgScale = document.getElementById('val-avg-scale');
+    const valAvgStd = document.getElementById('val-avg-std');
+    const valAvgCount = document.getElementById('val-avg-count');
+    const btnCalApplyAvg = document.getElementById('btn-cal-apply-avg');
+    const btnCalClearHistory = document.getElementById('btn-cal-clear-history');
+
+    // --- Calibration State ---
+    let activeCalAxis = 'pan'; // 'pan' or 'tilt'
+    let calReference = {
+        pan: { set: false, startDeg: 0.0, startImu: 0.0 },
+        tilt: { set: false, startDeg: 0.0, startImu: 0.0 }
+    };
+    let lastCalculation = null;
+    let calHistory = JSON.parse(localStorage.getItem('pan_tilt_cal_history')) || [];
+
+    // Helper: Update Active Scale Displays
+    function updateCalStudioScales() {
+        if (!calActiveScaleVal || !calActiveSprVal) return;
+        const scale = (activeCalAxis === 'pan') ? currentPanScale : currentTiltScale;
+        const spr = Math.round(scale * 360.0);
+        calActiveScaleVal.textContent = scale.toFixed(3);
+        calActiveSprVal.textContent = spr.toLocaleString();
+    }
+
+    // Helper: Switch Active Calibration Axis (Pan / Tilt)
+    function setCalAxis(axis) {
+        activeCalAxis = axis;
+        if (axis === 'pan') {
+            calTabPan.classList.add('active');
+            calTabTilt.classList.remove('active');
+            if (calImuAxis) calImuAxis.textContent = 'Heading (Pan)';
+        } else {
+            calTabTilt.classList.add('active');
+            calTabPan.classList.remove('active');
+            if (calImuAxis) calImuAxis.textContent = 'Pitch (Tilt)';
+        }
+        updateCalStudioScales();
+
+        const ref = calReference[activeCalAxis];
+        if (ref.set) {
+            if (calStartStatus) {
+                calStartStatus.className = 'step-status-msg success';
+                calStartStatus.innerHTML = `<span>✓ Reference active at ${ref.startDeg.toFixed(2)}° (IMU: ${ref.startImu.toFixed(1)}°).</span>`;
+            }
+        } else {
+            if (calStartStatus) {
+                calStartStatus.className = 'step-status-msg neutral';
+                calStartStatus.innerHTML = `<span>Status: Ready to set starting zero for ${axis.toUpperCase()} axis.</span>`;
+            }
+        }
+
+        renderCalHistory();
+    }
+
+    if (calTabPan) {
+        calTabPan.addEventListener('click', () => setCalAxis('pan'));
+    }
+    if (calTabTilt) {
+        calTabTilt.addEventListener('click', () => setCalAxis('tilt'));
+    }
+
+    // Telemetry Updater: Invoked on every serial STATUS packet
+    function updateCalStudioTelemetry(status) {
+        if (!modalCalStudio || modalCalStudio.classList.contains('hidden')) return;
+
+        const currentDeg = (activeCalAxis === 'pan') ? status.pan : status.tilt;
+        const currentScale = (activeCalAxis === 'pan') ? currentPanScale : currentTiltScale;
+        const ref = calReference[activeCalAxis];
+
+        // Update Step & Position Counter
+        if (ref.set) {
+            const deltaDeg = currentDeg - ref.startDeg;
+            const elapsedSteps = Math.round(deltaDeg * currentScale);
+            if (calElapsedSteps) {
+                calElapsedSteps.textContent = (elapsedSteps >= 0 ? '+' : '') + elapsedSteps.toLocaleString();
+            }
+            if (calCtrlPos) {
+                calCtrlPos.textContent = `${(deltaDeg >= 0 ? '+' : '') + deltaDeg.toFixed(2)}°`;
+            }
+        } else {
+            if (calElapsedSteps) calElapsedSteps.textContent = '+0';
+            if (calCtrlPos) calCtrlPos.textContent = `${currentDeg.toFixed(2)}°`;
+        }
+
+        // Update Live IMU Reference
+        if (lastRemappedImu && status.imuAvailable) {
+            const currentImu = (activeCalAxis === 'pan') ? lastRemappedImu.yaw : lastRemappedImu.pitch;
+            if (calImuVal) calImuVal.textContent = currentImu.toFixed(2);
+            if (calImuBadge) {
+                calImuBadge.textContent = 'Active';
+                calImuBadge.className = 'badge-sm badge-active';
+            }
+            if (ref.set) {
+                if (calImuBase) calImuBase.textContent = ref.startImu.toFixed(2);
+                let dImu = currentImu - ref.startImu;
+                if (activeCalAxis === 'pan') {
+                    while (dImu > 180) dImu -= 360;
+                    while (dImu < -180) dImu += 360;
+                }
+                if (calImuDelta) calImuDelta.textContent = (dImu >= 0 ? '+' : '') + dImu.toFixed(2);
+            } else {
+                if (calImuBase) calImuBase.textContent = '--';
+                if (calImuDelta) calImuDelta.textContent = '0.00';
+            }
+        } else {
+            if (calImuVal) calImuVal.textContent = '--';
+            if (calImuBadge) {
+                calImuBadge.textContent = 'Offline';
+                calImuBadge.className = 'badge-sm badge-inactive';
+            }
+            if (calImuBase) calImuBase.textContent = '--';
+            if (calImuDelta) calImuDelta.textContent = '--';
+        }
+    }
+
+    // Step 1: Fine Nudge Buttons
+    document.querySelectorAll('.btn-nudge-cal').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const dir = parseFloat(btn.dataset.dir) || 1;
+            const val = parseFloat(btn.dataset.val) || 1;
+            const delta = dir * val;
+            if (activeCalAxis === 'pan') {
+                send(`MOVEREL ${delta.toFixed(2)} 0`);
+            } else {
+                send(`MOVEREL 0 ${delta.toFixed(2)}`);
+            }
+        });
+    });
+
+    // Step 1: Zero Counter & Set Starting Reference
+    if (btnCalZeroStart) {
+        btnCalZeroStart.addEventListener('click', () => {
+            send('ZERO');
+
+            let startImu = 0.0;
+            if (lastRemappedImu && latestStatus && latestStatus.imuAvailable) {
+                startImu = (activeCalAxis === 'pan') ? lastRemappedImu.yaw : lastRemappedImu.pitch;
+            }
+
+            calReference[activeCalAxis] = {
+                set: true,
+                startDeg: 0.0,
+                startImu: startImu
+            };
+
+            if (calElapsedSteps) calElapsedSteps.textContent = '+0';
+            if (calCtrlPos) calCtrlPos.textContent = '0.00°';
+            if (calImuBase) calImuBase.textContent = startImu.toFixed(2);
+            if (calImuDelta) calImuDelta.textContent = '0.00';
+
+            if (calStartStatus) {
+                calStartStatus.className = 'step-status-msg success';
+                calStartStatus.innerHTML = `<span>✓ Zero reference set at 0.00° (IMU: ${startImu.toFixed(1)}°). Now jog or nudge to target mark.</span>`;
+            }
+
+            // Guide attention to Step 2
+            const cardStep2 = document.getElementById('card-step-2');
+            if (cardStep2) {
+                cardStep2.style.transition = 'box-shadow 0.3s ease';
+                cardStep2.style.boxShadow = '0 0 20px rgba(0, 229, 255, 0.4)';
+                setTimeout(() => { cardStep2.style.boxShadow = ''; }, 1200);
+            }
+        });
+    }
+
+    // Step 2: Target Angle Quick Presets
+    const targetPresetBtns = document.querySelectorAll('#card-step-2 .btn-preset');
+    targetPresetBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            targetPresetBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (calTargetAngleInput) {
+                calTargetAngleInput.value = btn.dataset.angle;
+            }
+        });
+    });
+
+    // Step 2: Coil Release Toggle (for hand positioning)
+    if (btnCalToggleCoils) {
+        btnCalToggleCoils.addEventListener('click', () => {
+            if (drivesEnabled) {
+                send('DISABLE');
+                btnCalToggleCoils.innerHTML = '🔒 Lock Motor Coils (Energize)';
+                btnCalToggleCoils.classList.add('active');
+            } else {
+                send('ENABLE');
+                btnCalToggleCoils.innerHTML = '🔓 Release Motor Coils (Hand Move)';
+                btnCalToggleCoils.classList.remove('active');
+            }
+        });
+    }
+
+    // Step 2: Record Position & Calculate Steps/Deg
+    if (btnCalRecordCalculate) {
+        btnCalRecordCalculate.addEventListener('click', () => {
+            const ref = calReference[activeCalAxis];
+            if (!ref.set) {
+                alert('Please complete Step 1 first: click "Zero Counter & Set Start Reference".');
+                return;
+            }
+
+            let targetAngle = parseFloat(calTargetAngleInput.value);
+            if (chkUseImuDelta && chkUseImuDelta.checked) {
+                if (lastRemappedImu && latestStatus && latestStatus.imuAvailable) {
+                    const curImu = (activeCalAxis === 'pan') ? lastRemappedImu.yaw : lastRemappedImu.pitch;
+                    let d = curImu - ref.startImu;
+                    if (activeCalAxis === 'pan') {
+                        while (d > 180) d -= 360;
+                        while (d < -180) d += 360;
+                    }
+                    targetAngle = Math.abs(d);
+                    calTargetAngleInput.value = targetAngle.toFixed(2);
+                } else {
+                    alert('BNO055 IMU is offline. Please uncheck "Use live IMU angle" and enter the target angle manually.');
+                    return;
+                }
+            }
+
+            if (!targetAngle || isNaN(targetAngle) || targetAngle <= 0.01) {
+                alert('Please enter a valid target displacement angle (e.g. 90.0° or 180.0°).');
+                return;
+            }
+
+            const currentDeg = (activeCalAxis === 'pan') ? (latestStatus ? latestStatus.pan : 0) : (latestStatus ? latestStatus.tilt : 0);
+            const currentScale = (activeCalAxis === 'pan') ? currentPanScale : currentTiltScale;
+            const deltaDeg = Math.abs(currentDeg - ref.startDeg);
+            const elapsedSteps = Math.round(deltaDeg * currentScale);
+
+            if (elapsedSteps === 0) {
+                alert('Motor has not moved since setting start reference (0 steps counted). Please jog or nudge the axis to your target mark before calculating.');
+                return;
+            }
+
+            // Exact calculation
+            const newScale = elapsedSteps / targetAngle;
+            const stepsPerRev = Math.round(newScale * 360.0);
+            // 200 motor steps/rev * 10x microstepping = 2000 steps per motor revolution
+            const gearRatio = (newScale * 360.0) / 2000.0;
+
+            let imuCheckStr = 'N/A';
+            if (lastRemappedImu && latestStatus && latestStatus.imuAvailable) {
+                const curImu = (activeCalAxis === 'pan') ? lastRemappedImu.yaw : lastRemappedImu.pitch;
+                let d = curImu - ref.startImu;
+                if (activeCalAxis === 'pan') {
+                    while (d > 180) d -= 360;
+                    while (d < -180) d += 360;
+                }
+                const dAbs = Math.abs(d);
+                const diff = Math.abs(dAbs - targetAngle);
+                imuCheckStr = `${dAbs.toFixed(2)}° (Δ ${diff.toFixed(2)}°)`;
+            }
+
+            lastCalculation = {
+                axis: activeCalAxis,
+                stepsDeg: newScale,
+                stepsRev: stepsPerRev,
+                gearRatio: gearRatio,
+                elapsedSteps: elapsedSteps,
+                targetAngle: targetAngle,
+                imuCheck: imuCheckStr
+            };
+
+            // Populate Results UI
+            if (resStepsDeg) resStepsDeg.textContent = newScale.toFixed(3);
+            if (resStepsRev) resStepsRev.textContent = stepsPerRev.toLocaleString();
+            if (resGearRatio) resGearRatio.textContent = gearRatio.toFixed(3) + ':1';
+            if (resStepsAngle) resStepsAngle.textContent = `${elapsedSteps.toLocaleString()} steps / ${targetAngle.toFixed(1)}°`;
+            if (resImuCheck) resImuCheck.textContent = imuCheckStr;
+
+            if (calResultsBox) {
+                calResultsBox.classList.remove('hidden');
+                calResultsBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        });
+    }
+
+    // Results: Apply Live Scale to Controller
+    if (btnCalApplyLive) {
+        btnCalApplyLive.addEventListener('click', () => {
+            if (!lastCalculation) return;
+
+            if (lastCalculation.axis === 'pan') {
+                currentPanScale = lastCalculation.stepsDeg;
+            } else {
+                currentTiltScale = lastCalculation.stepsDeg;
+            }
+
+            send(`SET SCALE ${currentPanScale.toFixed(3)} ${currentTiltScale.toFixed(3)}`);
+            updateCalStudioScales();
+
+            const origHtml = btnCalApplyLive.innerHTML;
+            btnCalApplyLive.innerHTML = '<span>✓ Scale Applied to Controller!</span>';
+            btnCalApplyLive.classList.add('btn-success');
+            setTimeout(() => {
+                btnCalApplyLive.innerHTML = origHtml;
+                btnCalApplyLive.classList.remove('btn-success');
+            }, 2000);
+
+            logTerminal(`[CAL] Applied new scale to ${lastCalculation.axis.toUpperCase()}: ${lastCalculation.stepsDeg.toFixed(3)} steps/deg (${lastCalculation.stepsRev.toLocaleString()} steps/rev)`, 'sys');
+        });
+    }
+
+    // Results: Add to History & Multi-Trial Average
+    if (btnCalAddHistory) {
+        btnCalAddHistory.addEventListener('click', () => {
+            if (!lastCalculation) return;
+
+            const trial = {
+                id: Date.now().toString(),
+                axis: lastCalculation.axis,
+                targetAngle: lastCalculation.targetAngle,
+                elapsedSteps: lastCalculation.elapsedSteps,
+                measuredScale: lastCalculation.stepsDeg,
+                imuDelta: lastCalculation.imuCheck,
+                timestamp: new Date().toLocaleTimeString()
+            };
+
+            calHistory.push(trial);
+            localStorage.setItem('pan_tilt_cal_history', JSON.stringify(calHistory));
+            renderCalHistory();
+
+            const origHtml = btnCalAddHistory.innerHTML;
+            btnCalAddHistory.innerHTML = '<span>✓ Added to History</span>';
+            setTimeout(() => {
+                btnCalAddHistory.innerHTML = origHtml;
+            }, 1500);
+        });
+    }
+
+    // Render Calibration History Table & Statistics
+    function renderCalHistory() {
+        if (!calHistoryTbody) return;
+        calHistoryTbody.innerHTML = '';
+
+        const axisTrials = calHistory.filter(t => t.axis === activeCalAxis);
+
+        if (axisTrials.length === 0) {
+            calHistoryTbody.innerHTML = `<tr class="empty-row"><td colspan="7">No calibration trials recorded for ${activeCalAxis.toUpperCase()} axis. Complete Step 1 & 2 above.</td></tr>`;
+            if (calAvgBanner) calAvgBanner.classList.add('hidden');
+            if (btnCalApplyAvg) btnCalApplyAvg.disabled = true;
+            return;
+        }
+
+        axisTrials.forEach((trial, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>#${index + 1}</strong> <span style="font-size:0.75rem; color:var(--text-muted);">(${trial.timestamp || ''})</span></td>
+                <td><span class="axis-tag ${trial.axis}">${trial.axis.toUpperCase()}</span></td>
+                <td>${trial.targetAngle.toFixed(1)}°</td>
+                <td>${trial.elapsedSteps.toLocaleString()}</td>
+                <td><strong>${trial.measuredScale.toFixed(3)}</strong></td>
+                <td>${trial.imuDelta || 'N/A'}</td>
+                <td><button class="btn-xs btn-ghost btn-del-cal-trial" data-id="${trial.id}">✕</button></td>
+            `;
+            calHistoryTbody.appendChild(tr);
+        });
+
+        // Add delete handlers
+        document.querySelectorAll('.btn-del-cal-trial').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                calHistory = calHistory.filter(t => t.id !== id);
+                localStorage.setItem('pan_tilt_cal_history', JSON.stringify(calHistory));
+                renderCalHistory();
+            });
+        });
+
+        // Calculate Average & Standard Deviation
+        const scales = axisTrials.map(t => t.measuredScale);
+        const mean = scales.reduce((a, b) => a + b, 0) / scales.length;
+        const variance = scales.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / scales.length;
+        const stdDev = Math.sqrt(variance);
+
+        if (valAvgScale) valAvgScale.textContent = mean.toFixed(3);
+        if (valAvgStd) valAvgStd.textContent = `±${stdDev.toFixed(3)} (${((stdDev / mean) * 100).toFixed(2)}%)`;
+        if (valAvgCount) valAvgCount.textContent = axisTrials.length;
+
+        if (calAvgBanner) calAvgBanner.classList.remove('hidden');
+        if (btnCalApplyAvg) btnCalApplyAvg.disabled = false;
+    }
+
+    // Apply Running Average Scale
+    if (btnCalApplyAvg) {
+        btnCalApplyAvg.addEventListener('click', () => {
+            const axisTrials = calHistory.filter(t => t.axis === activeCalAxis);
+            if (axisTrials.length === 0) return;
+
+            const scales = axisTrials.map(t => t.measuredScale);
+            const mean = scales.reduce((a, b) => a + b, 0) / scales.length;
+
+            if (activeCalAxis === 'pan') {
+                currentPanScale = mean;
+            } else {
+                currentTiltScale = mean;
+            }
+
+            send(`SET SCALE ${currentPanScale.toFixed(3)} ${currentTiltScale.toFixed(3)}`);
+            updateCalStudioScales();
+
+            logTerminal(`[CAL] Applied ${axisTrials.length}-trial average scale for ${activeCalAxis.toUpperCase()}: ${mean.toFixed(3)} steps/deg`, 'sys');
+            alert(`Applied ${axisTrials.length}-trial average scale (${mean.toFixed(3)} steps/°) to ${activeCalAxis.toUpperCase()} axis!`);
+        });
+    }
+
+    // Clear History for Active Axis
+    if (btnCalClearHistory) {
+        btnCalClearHistory.addEventListener('click', () => {
+            if (confirm(`Clear calibration trial history for ${activeCalAxis.toUpperCase()} axis?`)) {
+                calHistory = calHistory.filter(t => t.axis !== activeCalAxis);
+                localStorage.setItem('pan_tilt_cal_history', JSON.stringify(calHistory));
+                renderCalHistory();
+            }
+        });
+    }
+
+    // Modal Visibility Triggers
+    function openCalStudio() {
+        if (modalCalStudio) {
+            modalCalStudio.classList.remove('hidden');
+            updateCalStudioScales();
+            renderCalHistory();
+            if (latestStatus) {
+                updateCalStudioTelemetry(latestStatus);
+            }
+            send('GET SCALE');
+        }
+    }
+
+    function closeCalStudio() {
+        if (modalCalStudio) {
+            modalCalStudio.classList.add('hidden');
+        }
+    }
+
+    if (btnOpenCalStudio) btnOpenCalStudio.addEventListener('click', openCalStudio);
+    if (btnOpenCalStudioSub) btnOpenCalStudioSub.addEventListener('click', openCalStudio);
+    if (btnCloseCalStudio) btnCloseCalStudio.addEventListener('click', closeCalStudio);
+    if (modalCalStudio) {
+        modalCalStudio.addEventListener('click', (e) => {
+            if (e.target === modalCalStudio) {
+                closeCalStudio();
+            }
+        });
+    }
+
+    // Initialize calibration displays
+    updateCalStudioScales();
+    renderCalHistory();
 
     // Auto-start in Simulator mode if opened for quick preview
     logTerminal('[SYSTEM] Ready. Click "Simulator Mode" to test without hardware, or "Connect Serial" for physical Arduino.', 'sys');

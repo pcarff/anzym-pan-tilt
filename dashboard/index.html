@@ -54,6 +54,11 @@
                         <span class="btn-icon">🎮</span>
                         <span>Simulator Mode</span>
                     </button>
+
+                    <button id="btn-open-cal-studio" class="btn btn-outline btn-cal-studio" title="Open 2-Point Manual Step Calibration Studio">
+                        <span class="btn-icon">📐</span>
+                        <span>2-Point Calibration</span>
+                    </button>
                 </div>
 
                 <div class="status-badge-group">
@@ -325,7 +330,8 @@
                     </div>
 
                     <div class="settings-actions">
-                        <button id="btn-apply-calibration" class="btn-sm btn-primary">Apply Scale & Invert</button>
+                        <button id="btn-open-cal-studio-sub" class="btn-sm btn-primary">📐 2-Point Calibration Studio</button>
+                        <button id="btn-apply-calibration" class="btn-sm btn-outline">Apply Scale & Invert</button>
                         <button id="btn-test-90-pan" class="btn-sm btn-outline" title="Slew Pan by 90°">Test 90° Pan</button>
                         <button id="btn-test-45-tilt" class="btn-sm btn-outline" title="Slew Tilt by 45°">Test 45° Tilt</button>
                     </div>
@@ -386,6 +392,214 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- 2-Point Step Calibration Studio Modal -->
+    <div id="modal-cal-studio" class="modal-overlay hidden">
+        <div class="modal-dialog cal-dialog">
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <span class="modal-badge">📐 2-Point Manual Calibration Studio</span>
+                    <h2>Physical Step-to-Angle Calibration</h2>
+                    <p class="modal-subtitle">Align physically to a start mark, zero counter, jog/nudge to a target angle (e.g. 90° or 180°), and calculate exact steps per degree.</p>
+                </div>
+                <button id="btn-close-cal-studio" class="btn-close" title="Close Calibration Studio">&times;</button>
+            </div>
+
+            <div class="cal-body">
+                <!-- Axis Selector & Current Info Banner -->
+                <div class="cal-axis-selector-bar">
+                    <div class="axis-pill-toggle">
+                        <button id="cal-tab-pan" class="axis-pill active" data-axis="pan">
+                            <span class="axis-dot pan-dot"></span>
+                            <span>Pan Axis (Azimuth)</span>
+                        </button>
+                        <button id="cal-tab-tilt" class="axis-pill" data-axis="tilt">
+                            <span class="axis-dot tilt-dot"></span>
+                            <span>Tilt Axis (Altitude)</span>
+                        </button>
+                    </div>
+
+                    <div class="cal-scale-badge">
+                        Active Scale: <strong id="cal-active-scale-val">110.145</strong> steps/°
+                        <span class="cal-scale-sub">(<span id="cal-active-spr-val">39,652</span> steps/rev)</span>
+                    </div>
+                </div>
+
+                <!-- Live Counter & Telemetry Hero Box -->
+                <div class="cal-hero-grid">
+                    <div class="cal-counter-card">
+                        <div class="cal-card-label">Elapsed Motor Steps (Since Zero)</div>
+                        <div class="cal-counter-val">
+                            <span id="cal-elapsed-steps">+0</span>
+                            <span class="cal-counter-unit">STEPS</span>
+                        </div>
+                        <div class="cal-counter-sub">
+                            Controller Position: <span id="cal-ctrl-pos">0.00°</span>
+                        </div>
+                    </div>
+
+                    <div class="cal-imu-card">
+                        <div class="cal-card-label">
+                            <span>Live BNO055 IMU Reference</span>
+                            <span id="cal-imu-badge" class="badge-sm badge-active">Active</span>
+                        </div>
+                        <div class="cal-imu-val">
+                            <span id="cal-imu-val">0.00</span><span class="unit">°</span>
+                            <span id="cal-imu-axis" class="axis-tag">Heading</span>
+                        </div>
+                        <div class="cal-imu-sub">
+                            Baseline: <span id="cal-imu-base">--</span>° | Delta: <span id="cal-imu-delta">0.00</span>°
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2-Step Interactive Wizard Grid -->
+                <div class="cal-steps-grid">
+                    <!-- Step 1: Set Reference Mark -->
+                    <div class="cal-step-card" id="card-step-1">
+                        <div class="step-badge">STEP 1</div>
+                        <h3>Set Starting Reference</h3>
+                        <p class="step-desc">Position the axis to your physical zero mark (e.g. index pointer, mechanical stop, or level).</p>
+
+                        <!-- Fine Nudge Controls -->
+                        <div class="cal-nudge-bar">
+                            <span class="nudge-title">Fine Nudge:</span>
+                            <div class="nudge-btn-group">
+                                <button class="btn-nudge-cal" data-dir="-1" data-val="10">-10°</button>
+                                <button class="btn-nudge-cal" data-dir="-1" data-val="1">-1°</button>
+                                <button class="btn-nudge-cal" data-dir="-1" data-val="0.1">-0.1°</button>
+                                <button class="btn-nudge-cal" data-dir="1" data-val="0.1">+0.1°</button>
+                                <button class="btn-nudge-cal" data-dir="1" data-val="1">+1°</button>
+                                <button class="btn-nudge-cal" data-dir="1" data-val="10">+10°</button>
+                            </div>
+                        </div>
+
+                        <div class="step-action-row">
+                            <button id="btn-cal-zero-start" class="btn btn-primary btn-block">
+                                <span class="btn-icon">📌</span>
+                                <span>Zero Counter & Set Start Reference</span>
+                            </button>
+                        </div>
+                        <div id="cal-start-status" class="step-status-msg neutral">
+                            <span>Status: Ready to set starting zero.</span>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Align to Target & Calculate -->
+                    <div class="cal-step-card" id="card-step-2">
+                        <div class="step-badge">STEP 2</div>
+                        <h3>Move to Target & Calculate</h3>
+                        <p class="step-desc">Jog or nudge the motor to your known target mark (e.g. 90° or 180°), enter the angle, and calculate.</p>
+
+                        <div class="cal-target-angle-row">
+                            <label for="cal-target-angle-input">Target Angle (°):</label>
+                            <div class="input-with-presets">
+                                <input type="number" id="cal-target-angle-input" value="90.0" step="0.1" class="number-input">
+                                <div class="quick-preset-btns">
+                                    <button class="btn-preset" data-angle="30">30°</button>
+                                    <button class="btn-preset" data-angle="45">45°</button>
+                                    <button class="btn-preset active" data-angle="90">90°</button>
+                                    <button class="btn-preset" data-angle="180">180°</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Option: Use IMU Delta as target -->
+                        <div class="cal-imu-option-row">
+                            <label class="toggle-label sm">
+                                <input type="checkbox" id="chk-use-imu-delta">
+                                <span>Use live BNO055 IMU angle as target (Auto-measured)</span>
+                            </label>
+                        </div>
+
+                        <div class="step-action-row">
+                            <button id="btn-cal-record-calculate" class="btn btn-calibrate btn-block">
+                                <span class="btn-icon">🎯</span>
+                                <span>Record Position & Calculate Steps</span>
+                            </button>
+                        </div>
+
+                        <!-- Coil Release / Manual Option -->
+                        <div class="coil-toggle-row">
+                            <button id="btn-cal-toggle-coils" class="btn-sm btn-ghost" title="Temporarily de-energize coils to move by hand">
+                                🔓 Release Motor Coils (Hand Move)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results & Analysis Panel (Shows when calculated) -->
+                <div id="cal-results-box" class="cal-results-card hidden">
+                    <div class="results-header">
+                        <span class="badge-sm badge-active">CALCULATION RESULT</span>
+                        <div class="results-actions">
+                            <button id="btn-cal-apply-live" class="btn-sm btn-primary">⚡ Apply Scale to Live Controller</button>
+                            <button id="btn-cal-add-history" class="btn-sm btn-outline">➕ Add to Trial Average</button>
+                        </div>
+                    </div>
+
+                    <div class="results-grid">
+                        <div class="res-item highlight">
+                            <span class="res-label">Calibrated Steps / Degree</span>
+                            <span id="res-steps-deg" class="res-val highlight-val">--</span>
+                        </div>
+                        <div class="res-item">
+                            <span class="res-label">Steps / Full Rev (360°)</span>
+                            <span id="res-steps-rev" class="res-val">--</span>
+                        </div>
+                        <div class="res-item">
+                            <span class="res-label">Calculated Gear Ratio</span>
+                            <span id="res-gear-ratio" class="res-val">--</span>
+                        </div>
+                        <div class="res-item">
+                            <span class="res-label">Steps Issued / Angle</span>
+                            <span id="res-steps-angle" class="res-val sub">--</span>
+                        </div>
+                        <div class="res-item">
+                            <span class="res-label">IMU Ground Truth Check</span>
+                            <span id="res-imu-check" class="res-val sub">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Multi-Trial History & Running Average -->
+                <div class="cal-history-card">
+                    <div class="history-header">
+                        <span class="card-title">Calibration Trial History & Multi-Run Average</span>
+                        <div class="history-actions">
+                            <button id="btn-cal-apply-avg" class="btn-sm btn-action sm" disabled>⚡ Apply Averaged Scale</button>
+                            <button id="btn-cal-clear-history" class="btn-sm btn-ghost sm">Clear History</button>
+                        </div>
+                    </div>
+
+                    <div class="history-table-wrapper">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Trial #</th>
+                                    <th>Axis</th>
+                                    <th>Target Angle</th>
+                                    <th>Steps Taken</th>
+                                    <th>Measured Scale</th>
+                                    <th>IMU Delta</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cal-history-tbody">
+                                <tr class="empty-row"><td colspan="7">No calibration trials recorded yet. Complete Step 1 & 2 above.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="cal-avg-banner" class="avg-summary-bar hidden">
+                        <div class="avg-stat">Running Average Scale: <strong id="val-avg-scale">--</strong> steps/°</div>
+                        <div class="avg-stat">Std Dev: <span id="val-avg-std">--</span></div>
+                        <div class="avg-stat">Total Trials: <span id="val-avg-count">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
